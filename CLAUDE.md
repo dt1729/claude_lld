@@ -61,6 +61,13 @@ to this repo too: it is the first place the guidance has to survive contact with
 - INFO records one line per decision with the rules that fired and the elapsed time. DEBUG
   adds the inputs behind it. An unknown level degrades to INFO rather than failing.
 
+## Where rules come from
+
+`docs/incidents.md` records every observed failure and what changed because of it. Prefer
+adding a rule because something went wrong over adding one because something might. A rule
+with no incident behind it is a prediction, and predictions are the first thing to cut when
+the corpus needs pruning.
+
 ## Target environment
 
 Claude Code 2.1.268, Python 3.12. Avoid manifest fields newer than 2.1.268, notably

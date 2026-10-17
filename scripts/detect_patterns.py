@@ -37,7 +37,13 @@ JUDGE: Final = "judge"
 PURE_CALLS: Final = frozenset({
     "TypeVar", "NewType", "namedtuple", "NamedTuple", "TypedDict", "Path", "frozenset",
     "field", "dataclass", "compile", "getLogger", "auto", "Enum", "Final", "cast",
+    # Value constructors: a module-level constant built from one of these is data,
+    # not work. Flagging them taught the first real run nothing.
+    "array", "asarray", "zeros", "ones", "full", "arange", "linspace", "eye",
+    "deque", "defaultdict", "Counter", "date", "timedelta",
 })
+
+
 
 #: Bases whose contract is "subclass me", so inheriting from them is never the anti-pattern.
 OPEN_BASES: Final = frozenset({
@@ -61,6 +67,14 @@ LOGGING_CONFIG_CALLS: Final = frozenset({
     "basicConfig", "setLevel", "addHandler", "removeHandler", "setFormatter", "dictConfig",
     "fileConfig",
 })
+
+#: Calls a more specific rule already reports. Rule 03 stays silent on them so one defect
+#: produces one finding, not two.
+CLAIMED_BY_OTHER_RULES: Final = frozenset({"print"}) | LOGGING_CONFIG_CALLS
+
+#: Side effects at import that are near-universal in scripts. Still wrong when the module
+#: is imported by anything, so they are reported - but as judgment, not a block.
+IMPORT_TIME_IDIOMS: Final = frozenset({"insert", "append", "add_argument", "use", "filterwarnings"})
 
 MUTATING_METHODS: Final = frozenset({
     "append", "extend", "insert", "remove", "pop", "clear", "update", "add",
@@ -291,7 +305,15 @@ def rule_03_import_time_side_effects(tree: ast.Module, ctx: FileContext) -> list
     for node in tree.body:
         if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
             name = _call_name(node.value)
-            if name not in PURE_CALLS:
+            if name in PURE_CALLS or name in CLAIMED_BY_OTHER_RULES:
+                continue
+            if name in IMPORT_TIME_IDIOMS:
+                found.append(Finding(
+                    3, name, node.lineno, JUDGE,
+                    f"{name} at import time is a common script idiom but still a side "
+                    "effect; move it into main() when this module is imported by anything",
+                ))
+            else:
                 found.append(Finding(
                     3, name or "<call>", node.lineno, BLOCK,
                     "call executed at import time: move it into a function the composition "
@@ -299,7 +321,7 @@ def rule_03_import_time_side_effects(tree: ast.Module, ctx: FileContext) -> list
                 ))
         elif isinstance(node, (ast.Assign, ast.AnnAssign)) and isinstance(node.value, ast.Call):
             name = _call_name(node.value)
-            if name not in PURE_CALLS:
+            if name not in PURE_CALLS and name not in CLAIMED_BY_OTHER_RULES:
                 found.append(Finding(
                     3, name or "<call>", node.lineno, JUDGE,
                     f"module-level assignment calls {name or 'a function'} at import time; "
