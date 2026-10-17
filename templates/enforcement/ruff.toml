@@ -1,0 +1,64 @@
+# Mechanical enforcement for this repo. Every rule here is deliberately absent from the
+# markdown: a rule a tool can decide belongs in the tool, named once, not restated in prose.
+# skills/python-style/SKILL.md carries the table mapping concerns to these codes.
+
+line-length = 100
+target-version = "py312"
+
+[lint]
+select = [
+    "F",      # pyflakes: undefined names, unused imports
+    "E", "W", # pycodestyle
+    "I",      # import sorting
+    "N",      # pep8 naming
+    "UP",     # pyupgrade: modern syntax for the target version
+    "B",      # bugbear: mutable defaults (B006), loop capture (B023)
+    "A",      # builtin shadowing
+    "C4",     # comprehension clarity
+    "SIM",    # simplifiable constructs
+    "RET",    # return-path clarity, including no-else-after-return
+    "ARG",    # unused arguments
+    "PTH",    # pathlib over os.path
+    "TRY",    # exception antipatterns: long bodies, raise-without-from
+    "BLE",    # blind except
+    "FBT",    # boolean positional arguments
+    "ANN",    # missing annotations
+    "C90",    # mccabe complexity
+    "PL",     # pylint: argument/statement/branch counts
+    "RUF",
+]
+ignore = [
+    "ANN401",  # Any is sometimes the honest annotation at a boundary
+    "TRY003",  # long messages inside raise: our error messages are the interface
+    "PLR2004", # magic value comparison: too noisy to be worth the churn
+]
+
+# These thresholds are the mechanical half of "split on reasons to change". They do not
+# decide where a seam goes, which is why that stays in the markdown.
+[lint.mccabe]
+max-complexity = 10
+
+[lint.pylint]
+max-args = 6
+max-branches = 12
+max-statements = 50
+# Guard clauses are required by READABILITY.md ("keep the happy path at the lowest
+# indentation"), and they produce early returns. A decision function legitimately has
+# several; 8 is where it starts meaning the function has two jobs.
+max-returns = 8
+
+[lint.per-file-ignores]
+# Tests may assert on literals, run long, and skip annotations on fixtures.
+# E501: fixture strings are literal contract and source text; wrapping them would change
+# what is under test.
+"**/tests/**" = ["ANN", "PLR2004", "S101", "ARG", "E501"]
+# Scripts are a composition root: printing and argument parsing are their job.
+"scripts/*.py" = []
+
+[lint.flake8-annotations]
+mypy-init-return = true
+suppress-none-returning = true
+
+[format]
+quote-style = "double"
+indent-style = "space"

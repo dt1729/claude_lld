@@ -34,39 +34,95 @@ BLOCK: Final = "block"
 JUDGE: Final = "judge"
 
 #: Calls that are cheap and pure, so a module-level assignment from one is not a side effect.
-PURE_CALLS: Final = frozenset({
-    "TypeVar", "NewType", "namedtuple", "NamedTuple", "TypedDict", "Path", "frozenset",
-    "field", "dataclass", "compile", "getLogger", "auto", "Enum", "Final", "cast",
-    # Value constructors: a module-level constant built from one of these is data,
-    # not work. Flagging them taught the first real run nothing.
-    "array", "asarray", "zeros", "ones", "full", "arange", "linspace", "eye",
-    "deque", "defaultdict", "Counter", "date", "timedelta",
-})
-
+PURE_CALLS: Final = frozenset(
+    {
+        "TypeVar",
+        "NewType",
+        "namedtuple",
+        "NamedTuple",
+        "TypedDict",
+        "Path",
+        "frozenset",
+        "field",
+        "dataclass",
+        "compile",
+        "getLogger",
+        "auto",
+        "Enum",
+        "Final",
+        "cast",
+        # Value constructors: a module-level constant built from one of these is data,
+        # not work. Flagging them taught the first real run nothing.
+        "array",
+        "asarray",
+        "zeros",
+        "ones",
+        "full",
+        "arange",
+        "linspace",
+        "eye",
+        "deque",
+        "defaultdict",
+        "Counter",
+        "date",
+        "timedelta",
+    }
+)
 
 
 #: Bases whose contract is "subclass me", so inheriting from them is never the anti-pattern.
-OPEN_BASES: Final = frozenset({
-    "ABC", "ABCMeta", "Protocol", "Enum", "IntEnum", "StrEnum", "Flag", "Exception",
-    "BaseException", "NamedTuple", "TypedDict", "Generic", "object",
-})
+OPEN_BASES: Final = frozenset(
+    {
+        "ABC",
+        "ABCMeta",
+        "Protocol",
+        "Enum",
+        "IntEnum",
+        "StrEnum",
+        "Flag",
+        "Exception",
+        "BaseException",
+        "NamedTuple",
+        "TypedDict",
+        "Generic",
+        "object",
+    }
+)
 
 #: Modules permitted to read the environment and configure logging: the composition root.
 #: A module carrying an ``if __name__ == "__main__"`` guard also qualifies, by shape.
-COMPOSITION_ROOTS: Final = frozenset({
-    "main.py", "cli.py", "__main__.py", "settings.py", "config.py",
-    # Modules whose job is logging configuration, same category as settings.py.
-    "logsetup.py", "logging_config.py", "log_config.py", "logconfig.py",
-})
+COMPOSITION_ROOTS: Final = frozenset(
+    {
+        "main.py",
+        "cli.py",
+        "__main__.py",
+        "settings.py",
+        "config.py",
+        # Modules whose job is logging configuration, same category as settings.py.
+        "logsetup.py",
+        "logging_config.py",
+        "log_config.py",
+        "logconfig.py",
+    }
+)
 
 #: Logger methods, used to recognise a log call without resolving the logger object.
-LOG_METHODS: Final = frozenset({"debug", "info", "warning", "warn", "error", "critical", "exception", "log"})
+LOG_METHODS: Final = frozenset(
+    {"debug", "info", "warning", "warn", "error", "critical", "exception", "log"}
+)
 
 #: Configuration calls that belong to the application, never to a library module.
-LOGGING_CONFIG_CALLS: Final = frozenset({
-    "basicConfig", "setLevel", "addHandler", "removeHandler", "setFormatter", "dictConfig",
-    "fileConfig",
-})
+LOGGING_CONFIG_CALLS: Final = frozenset(
+    {
+        "basicConfig",
+        "setLevel",
+        "addHandler",
+        "removeHandler",
+        "setFormatter",
+        "dictConfig",
+        "fileConfig",
+    }
+)
 
 #: Calls a more specific rule already reports. Rule 03 stays silent on them so one defect
 #: produces one finding, not two.
@@ -76,10 +132,22 @@ CLAIMED_BY_OTHER_RULES: Final = frozenset({"print"}) | LOGGING_CONFIG_CALLS
 #: is imported by anything, so they are reported - but as judgment, not a block.
 IMPORT_TIME_IDIOMS: Final = frozenset({"insert", "append", "add_argument", "use", "filterwarnings"})
 
-MUTATING_METHODS: Final = frozenset({
-    "append", "extend", "insert", "remove", "pop", "clear", "update", "add",
-    "discard", "setdefault", "popitem", "sort",
-})
+MUTATING_METHODS: Final = frozenset(
+    {
+        "append",
+        "extend",
+        "insert",
+        "remove",
+        "pop",
+        "clear",
+        "update",
+        "add",
+        "discard",
+        "setdefault",
+        "popitem",
+        "sort",
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,8 +186,7 @@ def has_main_guard(tree: ast.Module) -> bool:
             isinstance(left, ast.Name)
             and left.id == "__name__"
             and any(
-                isinstance(c, ast.Constant) and c.value == "__main__"
-                for c in node.test.comparators
+                isinstance(c, ast.Constant) and c.value == "__main__" for c in node.test.comparators
             )
         ):
             return True
@@ -139,6 +206,7 @@ def build_context(path: Path, src_root: str, *, executable: bool = False) -> Fil
 
 
 # --- helpers ----------------------------------------------------------------------------
+
 
 def _methods(cls: ast.ClassDef) -> list[ast.FunctionDef | ast.AsyncFunctionDef]:
     return [n for n in cls.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
@@ -172,12 +240,24 @@ def _base_names(cls: ast.ClassDef) -> list[str]:
 
 
 def _is_empty_body(fn: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
-    body = [n for n in fn.body if not (isinstance(n, ast.Expr) and isinstance(n.value, ast.Constant) and isinstance(n.value.value, str))]
+    body = [
+        n
+        for n in fn.body
+        if not (
+            isinstance(n, ast.Expr)
+            and isinstance(n.value, ast.Constant)
+            and isinstance(n.value.value, str)
+        )
+    ]
     if not body:
         return True
     return all(
         isinstance(n, ast.Pass)
-        or (isinstance(n, ast.Expr) and isinstance(n.value, ast.Constant) and n.value.value is Ellipsis)
+        or (
+            isinstance(n, ast.Expr)
+            and isinstance(n.value, ast.Constant)
+            and n.value.value is Ellipsis
+        )
         for n in body
     )
 
@@ -235,7 +315,8 @@ def _functions(tree: ast.Module) -> Iterator[ast.FunctionDef | ast.AsyncFunction
 
 # --- rules ------------------------------------------------------------------------------
 
-def rule_01_singleton_accessor(tree: ast.Module, ctx: FileContext) -> list[Finding]:
+
+def rule_01_singleton_accessor(tree: ast.Module, _ctx: FileContext) -> list[Finding]:
     """A classmethod handing back a cached class attribute, or a global assigned in a function."""
     found: list[Finding] = []
     for cls in _classes(tree):
@@ -245,28 +326,44 @@ def rule_01_singleton_accessor(tree: ast.Module, ctx: FileContext) -> list[Findi
             for node in ast.walk(fn):
                 if isinstance(node, ast.Return) and isinstance(node.value, ast.Attribute):
                     base = node.value.value
-                    if isinstance(base, ast.Name) and base.id == "cls" and node.value.attr.startswith("_"):
-                        found.append(Finding(
-                            1, f"{cls.name}.{fn.name}", fn.lineno, BLOCK,
-                            "global singleton accessor: build one instance at the composition "
-                            "root and inject it instead",
-                        ))
+                    if (
+                        isinstance(base, ast.Name)
+                        and base.id == "cls"
+                        and node.value.attr.startswith("_")
+                    ):
+                        found.append(
+                            Finding(
+                                1,
+                                f"{cls.name}.{fn.name}",
+                                fn.lineno,
+                                BLOCK,
+                                "global singleton accessor: build one instance at the composition "
+                                "root and inject it instead",
+                            )
+                        )
     for fn in _functions(tree):
         for node in ast.walk(fn):
             if isinstance(node, ast.Global):
-                found.append(Finding(
-                    1, fn.name, node.lineno, BLOCK,
-                    f"assigns module global {', '.join(node.names)} from inside a function: "
-                    "state the caller cannot own or replace",
-                ))
+                found.append(
+                    Finding(
+                        1,
+                        fn.name,
+                        node.lineno,
+                        BLOCK,
+                        f"assigns module global {', '.join(node.names)} from inside a function: "
+                        "state the caller cannot own or replace",
+                    )
+                )
     return found
 
 
-def rule_02_module_mutable_state(tree: ast.Module, ctx: FileContext) -> list[Finding]:
+def rule_02_module_mutable_state(tree: ast.Module, _ctx: FileContext) -> list[Finding]:
     """A module-level container that is written at runtime is a global with a nicer name."""
     candidates: dict[str, int] = {}
     for node in tree.body:
-        if isinstance(node, ast.Assign) and isinstance(node.value, (ast.List, ast.Dict, ast.Set, ast.ListComp, ast.DictComp, ast.SetComp)):
+        if isinstance(node, ast.Assign) and isinstance(
+            node.value, (ast.List, ast.Dict, ast.Set, ast.ListComp, ast.DictComp, ast.SetComp)
+        ):
             for target in node.targets:
                 if isinstance(target, ast.Name):
                     candidates[target.id] = node.lineno
@@ -292,14 +389,20 @@ def rule_02_module_mutable_state(tree: ast.Module, ctx: FileContext) -> list[Fin
             mutated.add(child.target.id)
 
     return [
-        Finding(2, name, line, BLOCK,
-                "module-level mutable state is written at runtime: two configurations cannot "
-                "coexist and test order becomes significant")
-        for name, line in sorted(candidates.items()) if name in mutated
+        Finding(
+            2,
+            name,
+            line,
+            BLOCK,
+            "module-level mutable state is written at runtime: two configurations cannot "
+            "coexist and test order becomes significant",
+        )
+        for name, line in sorted(candidates.items())
+        if name in mutated
     ]
 
 
-def rule_03_import_time_side_effects(tree: ast.Module, ctx: FileContext) -> list[Finding]:
+def rule_03_import_time_side_effects(tree: ast.Module, _ctx: FileContext) -> list[Finding]:
     """Work at module scope surfaces failures as import errors, far from the cause."""
     found: list[Finding] = []
     for node in tree.body:
@@ -308,29 +411,44 @@ def rule_03_import_time_side_effects(tree: ast.Module, ctx: FileContext) -> list
             if name in PURE_CALLS or name in CLAIMED_BY_OTHER_RULES:
                 continue
             if name in IMPORT_TIME_IDIOMS:
-                found.append(Finding(
-                    3, name, node.lineno, JUDGE,
-                    f"{name} at import time is a common script idiom but still a side "
-                    "effect; move it into main() when this module is imported by anything",
-                ))
+                found.append(
+                    Finding(
+                        3,
+                        name,
+                        node.lineno,
+                        JUDGE,
+                        f"{name} at import time is a common script idiom but still a side "
+                        "effect; move it into main() when this module is imported by anything",
+                    )
+                )
             else:
-                found.append(Finding(
-                    3, name or "<call>", node.lineno, BLOCK,
-                    "call executed at import time: move it into a function the composition "
-                    "root calls",
-                ))
+                found.append(
+                    Finding(
+                        3,
+                        name or "<call>",
+                        node.lineno,
+                        BLOCK,
+                        "call executed at import time: move it into a function the composition "
+                        "root calls",
+                    )
+                )
         elif isinstance(node, (ast.Assign, ast.AnnAssign)) and isinstance(node.value, ast.Call):
             name = _call_name(node.value)
             if name not in PURE_CALLS and name not in CLAIMED_BY_OTHER_RULES:
-                found.append(Finding(
-                    3, name or "<call>", node.lineno, JUDGE,
-                    f"module-level assignment calls {name or 'a function'} at import time; "
-                    "confirm it is pure and cheap",
-                ))
+                found.append(
+                    Finding(
+                        3,
+                        name or "<call>",
+                        node.lineno,
+                        JUDGE,
+                        f"module-level assignment calls {name or 'a function'} at import time; "
+                        "confirm it is pure and cheap",
+                    )
+                )
     return found
 
 
-def rule_04_05_inheritance(tree: ast.Module, ctx: FileContext) -> list[Finding]:
+def rule_04_05_inheritance(tree: ast.Module, _ctx: FileContext) -> list[Finding]:
     """Inheriting from your own concrete class, and chains deeper than one level."""
     local: dict[str, ast.ClassDef] = {c.name: c for c in _classes(tree)}
     found: list[Finding] = []
@@ -343,21 +461,31 @@ def rule_04_05_inheritance(tree: ast.Module, ctx: FileContext) -> list[Finding]:
                 "abstractmethod" in _decorator_names(m) for m in _methods(base)
             )
             if not base_is_abstract and base_name not in OPEN_BASES:
-                found.append(Finding(
-                    4, cls.name, cls.lineno, BLOCK,
-                    f"inherits from concrete class {base_name} defined in this file: hold an "
-                    "instance and expose what you mean to expose",
-                ))
+                found.append(
+                    Finding(
+                        4,
+                        cls.name,
+                        cls.lineno,
+                        BLOCK,
+                        f"inherits from concrete class {base_name} defined in this file: hold an "
+                        "instance and expose what you mean to expose",
+                    )
+                )
             if set(_base_names(base)) & set(local):
-                found.append(Finding(
-                    5, cls.name, cls.lineno, BLOCK,
-                    f"inheritance depth > 1 ({cls.name} -> {base_name} -> ...): the middle "
-                    "class is both a partial implementation and a variation",
-                ))
+                found.append(
+                    Finding(
+                        5,
+                        cls.name,
+                        cls.lineno,
+                        BLOCK,
+                        f"inheritance depth > 1 ({cls.name} -> {base_name} -> ...): the middle "
+                        "class is both a partial implementation and a variation",
+                    )
+                )
     return found
 
 
-def rule_06_all_abstract_abc(tree: ast.Module, ctx: FileContext) -> list[Finding]:
+def rule_06_all_abstract_abc(tree: ast.Module, _ctx: FileContext) -> list[Finding]:
     """An ABC with no shared implementation is a Protocol with extra coupling."""
     found: list[Finding] = []
     for cls in _classes(tree):
@@ -365,15 +493,20 @@ def rule_06_all_abstract_abc(tree: ast.Module, ctx: FileContext) -> list[Finding
             continue
         methods = _methods(cls)
         if methods and all(_is_empty_body(m) for m in methods):
-            found.append(Finding(
-                6, cls.name, cls.lineno, BLOCK,
-                "every method is abstract: use typing.Protocol so implementers need not "
-                "import you",
-            ))
+            found.append(
+                Finding(
+                    6,
+                    cls.name,
+                    cls.lineno,
+                    BLOCK,
+                    "every method is abstract: use typing.Protocol so implementers need not "
+                    "import you",
+                )
+            )
     return found
 
 
-def rule_07_stateful_mixin(tree: ast.Module, ctx: FileContext) -> list[Finding]:
+def rule_07_stateful_mixin(tree: ast.Module, _ctx: FileContext) -> list[Finding]:
     """A mixin holding state imposes the initialisation order mixins exist to avoid."""
     found: list[Finding] = []
     for cls in _classes(tree):
@@ -381,51 +514,77 @@ def rule_07_stateful_mixin(tree: ast.Module, ctx: FileContext) -> list[Finding]:
             continue
         for fn in _methods(cls):
             if fn.name == "__init__" or _assigns_self(fn):
-                found.append(Finding(
-                    7, cls.name, cls.lineno, BLOCK,
-                    "mixin holds state: make it a collaborator held as an attribute",
-                ))
+                found.append(
+                    Finding(
+                        7,
+                        cls.name,
+                        cls.lineno,
+                        BLOCK,
+                        "mixin holds state: make it a collaborator held as an attribute",
+                    )
+                )
                 break
     return found
 
 
-def rule_08_class_init_plus_one(tree: ast.Module, ctx: FileContext) -> list[Finding]:
+def rule_08_class_init_plus_one(tree: ast.Module, _ctx: FileContext) -> list[Finding]:
     """Two methods, one of them __init__: usually a function with deferred arguments."""
     found: list[Finding] = []
     for cls in _classes(tree):
         methods = _methods(cls)
         names = {m.name for m in methods}
         is_dataclass = bool(_decorator_names(cls) & {"dataclass"})
-        if len(methods) == 2 and "__init__" in names and not _class_attributes(cls) and not is_dataclass:
+        if (
+            len(methods) == 2
+            and "__init__" in names
+            and not _class_attributes(cls)
+            and not is_dataclass
+        ):
             other = next(m for m in methods if m.name != "__init__")
-            found.append(Finding(
-                8, cls.name, cls.lineno, JUDGE,
-                f"class with only __init__ and {other.name}: a function unless this instance "
-                "is a seam that gets substituted, or holds state between calls",
-            ))
+            found.append(
+                Finding(
+                    8,
+                    cls.name,
+                    cls.lineno,
+                    JUDGE,
+                    f"class with only __init__ and {other.name}: a function unless this instance "
+                    "is a seam that gets substituted, or holds state between calls",
+                )
+            )
     return found
 
 
-def rule_09_all_staticmethod(tree: ast.Module, ctx: FileContext) -> list[Finding]:
+def rule_09_all_staticmethod(tree: ast.Module, _ctx: FileContext) -> list[Finding]:
     """A class of static methods is a module with extra syntax."""
     found: list[Finding] = []
     for cls in _classes(tree):
         methods = _methods(cls)
-        if methods and not _class_attributes(cls) and all(
-            "staticmethod" in _decorator_names(m) for m in methods
+        if (
+            methods
+            and not _class_attributes(cls)
+            and all("staticmethod" in _decorator_names(m) for m in methods)
         ):
-            found.append(Finding(
-                9, cls.name, cls.lineno, BLOCK,
-                "every method is static: use a module of functions",
-            ))
+            found.append(
+                Finding(
+                    9,
+                    cls.name,
+                    cls.lineno,
+                    BLOCK,
+                    "every method is static: use a module of functions",
+                )
+            )
     return found
 
 
-def rule_10_pass_through(tree: ast.Module, ctx: FileContext) -> list[Finding]:
+def rule_10_pass_through(tree: ast.Module, _ctx: FileContext) -> list[Finding]:
     """A function forwarding its arguments unchanged adds a name and hides nothing."""
     found: list[Finding] = []
     for fn in _functions(tree):
-        body = [n for n in fn.body if not (isinstance(n, ast.Expr) and isinstance(n.value, ast.Constant))]
+        body = [
+            n
+            for n in fn.body
+            if not (isinstance(n, ast.Expr) and isinstance(n.value, ast.Constant))
+        ]
         if len(body) != 1:
             continue
         statement = body[0]
@@ -434,27 +593,35 @@ def rule_10_pass_through(tree: ast.Module, ctx: FileContext) -> list[Finding]:
         value = statement.value
         if not isinstance(value, ast.Call):
             continue
-        params = [a.arg for a in (*fn.args.args, *fn.args.kwonlyargs) if a.arg not in ("self", "cls")]
+        params = [
+            a.arg for a in (*fn.args.args, *fn.args.kwonlyargs) if a.arg not in ("self", "cls")
+        ]
         # A pass-through forwards every parameter and supplies nothing of its own, so every
         # argument must be a bare name and the names must match the parameters exactly.
         positional = [a.id for a in value.args if isinstance(a, ast.Name)]
         keyword = [kw.value.id for kw in value.keywords if isinstance(kw.value, ast.Name)]
         forwards_only = len(positional) == len(value.args) and len(keyword) == len(value.keywords)
         if params and forwards_only and sorted(positional + keyword) == sorted(params):
-            found.append(Finding(
-                10, fn.name, fn.lineno, JUDGE,
-                f"forwards every argument to {_call_name(value)} unchanged: delete it unless "
-                "it satisfies a seam or deliberately narrows a surface",
-            ))
+            found.append(
+                Finding(
+                    10,
+                    fn.name,
+                    fn.lineno,
+                    JUDGE,
+                    f"forwards every argument to {_call_name(value)} unchanged: delete it unless "
+                    "it satisfies a seam or deliberately narrows a surface",
+                )
+            )
     return found
 
 
-def rule_12_stringly_typed_mode(tree: ast.Module, ctx: FileContext) -> list[Finding]:
+def rule_12_stringly_typed_mode(tree: ast.Module, _ctx: FileContext) -> list[Finding]:
     """A str parameter branched on accepts values the type system cannot check."""
     found: list[Finding] = []
     for fn in _functions(tree):
         str_params = {
-            a.arg for a in (*fn.args.args, *fn.args.kwonlyargs)
+            a.arg
+            for a in (*fn.args.args, *fn.args.kwonlyargs)
             if isinstance(a.annotation, ast.Name) and a.annotation.id == "str"
         }
         if not str_params:
@@ -470,11 +637,16 @@ def rule_12_stringly_typed_mode(tree: ast.Module, ctx: FileContext) -> list[Find
                 compared[node.left.id] = compared.get(node.left.id, 0) + 1
         for param, count in sorted(compared.items()):
             if count >= 2:
-                found.append(Finding(
-                    12, f"{fn.name}({param})", fn.lineno, JUDGE,
-                    f"{param} is compared against {count} string literals: an Enum when the "
-                    "set is closed, a Callable when callers may supply their own",
-                ))
+                found.append(
+                    Finding(
+                        12,
+                        f"{fn.name}({param})",
+                        fn.lineno,
+                        JUDGE,
+                        f"{param} is compared against {count} string literals: an Enum when the "
+                        "set is closed, a Callable when callers may supply their own",
+                    )
+                )
     return found
 
 
@@ -485,13 +657,27 @@ def rule_13_env_below_root(tree: ast.Module, ctx: FileContext) -> list[Finding]:
     found: list[Finding] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Attribute) and node.attr == "environ":
-            found.append(Finding(13, "os.environ", node.lineno, BLOCK,
-                                 "environment read outside the composition root: read it once "
-                                 "into the frozen config and pass the config"))
+            found.append(
+                Finding(
+                    13,
+                    "os.environ",
+                    node.lineno,
+                    BLOCK,
+                    "environment read outside the composition root: read it once "
+                    "into the frozen config and pass the config",
+                )
+            )
         elif isinstance(node, ast.Call) and _call_name(node) == "getenv":
-            found.append(Finding(13, "os.getenv", node.lineno, BLOCK,
-                                 "environment read outside the composition root: read it once "
-                                 "into the frozen config and pass the config"))
+            found.append(
+                Finding(
+                    13,
+                    "os.getenv",
+                    node.lineno,
+                    BLOCK,
+                    "environment read outside the composition root: read it once "
+                    "into the frozen config and pass the config",
+                )
+            )
     return found
 
 
@@ -500,11 +686,18 @@ def rule_19_print_in_package(tree: ast.Module, ctx: FileContext) -> list[Finding
     if ctx.is_composition_root:
         return []
     return [
-        Finding(19, "print", node.lineno, BLOCK,
-                "print in a package module: use logging.getLogger(__name__) and a level "
-                "chosen by who must act")
+        Finding(
+            19,
+            "print",
+            node.lineno,
+            BLOCK,
+            "print in a package module: use logging.getLogger(__name__) and a level "
+            "chosen by who must act",
+        )
         for node in ast.walk(tree)
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "print"
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "print"
     ]
 
 
@@ -513,15 +706,20 @@ def rule_20_logging_configured_below_root(tree: ast.Module, ctx: FileContext) ->
     if ctx.is_composition_root:
         return []
     return [
-        Finding(20, _call_name(node), node.lineno, BLOCK,
-                f"{_call_name(node)} outside the composition root: a library emits records "
-                "and lets the application decide where they go")
+        Finding(
+            20,
+            _call_name(node),
+            node.lineno,
+            BLOCK,
+            f"{_call_name(node)} outside the composition root: a library emits records "
+            "and lets the application decide where they go",
+        )
         for node in ast.walk(tree)
         if isinstance(node, ast.Call) and _call_name(node) in LOGGING_CONFIG_CALLS
     ]
 
 
-def rule_21_eager_log_formatting(tree: ast.Module, ctx: FileContext) -> list[Finding]:
+def rule_21_eager_log_formatting(tree: ast.Module, _ctx: FileContext) -> list[Finding]:
     """Formatting eagerly costs work when disabled and destroys the aggregator grouping key."""
     found: list[Finding] = []
     for node in ast.walk(tree):
@@ -536,11 +734,16 @@ def rule_21_eager_log_formatting(tree: ast.Module, ctx: FileContext) -> list[Fin
         elif isinstance(first, ast.BinOp) and isinstance(first.op, ast.Mod):
             shape = "% formatting"
         if shape:
-            found.append(Finding(
-                21, _call_name(node), node.lineno, BLOCK,
-                f"{shape} in a log call: pass the format string and arguments separately, "
-                'as log.info("loaded %s", name)',
-            ))
+            found.append(
+                Finding(
+                    21,
+                    _call_name(node),
+                    node.lineno,
+                    BLOCK,
+                    f"{shape} in a log call: pass the format string and arguments separately, "
+                    'as log.info("loaded %s", name)',
+                )
+            )
     return found
 
 
@@ -549,23 +752,28 @@ def rule_22_literal_logger_name(tree: ast.Module, ctx: FileContext) -> list[Find
     if ctx.is_composition_root:
         return []
     return [
-        Finding(22, "getLogger", node.lineno, BLOCK,
-                "logger named by a string literal: use getLogger(__name__) so per-module "
-                "configuration reaches it")
+        Finding(
+            22,
+            "getLogger",
+            node.lineno,
+            BLOCK,
+            "logger named by a string literal: use getLogger(__name__) so per-module "
+            "configuration reaches it",
+        )
         for node in ast.walk(tree)
-        if isinstance(node, ast.Call) and _call_name(node) == "getLogger" and node.args
-        and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str)
+        if isinstance(node, ast.Call)
+        and _call_name(node) == "getLogger"
+        and node.args
+        and isinstance(node.args[0], ast.Constant)
+        and isinstance(node.args[0].value, str)
     ]
 
 
-def rule_23_24_exception_handlers(tree: ast.Module, ctx: FileContext) -> list[Finding]:
+def rule_23_24_exception_handlers(tree: ast.Module, _ctx: FileContext) -> list[Finding]:
     """Logging an exception without its traceback, and logging one instead of handling it."""
     found: list[Finding] = []
     for handler in (n for n in ast.walk(tree) if isinstance(n, ast.ExceptHandler)):
-        log_calls = [
-            n for n in ast.walk(handler)
-            if isinstance(n, ast.Call) and _is_log_call(n)
-        ]
+        log_calls = [n for n in ast.walk(handler) if isinstance(n, ast.Call) and _is_log_call(n)]
         if not log_calls:
             continue
 
@@ -575,29 +783,45 @@ def rule_23_24_exception_handlers(tree: ast.Module, ctx: FileContext) -> list[Fi
                 kw.arg == "exc_info" for kw in call.keywords
             )
             if method in ("error", "critical") and not carries_traceback:
-                found.append(Finding(
-                    23, method, call.lineno, BLOCK,
-                    "exception logged without its traceback: use log.exception(...) or "
-                    "exc_info=True inside an except block",
-                ))
+                found.append(
+                    Finding(
+                        23,
+                        method,
+                        call.lineno,
+                        BLOCK,
+                        "exception logged without its traceback: use log.exception(...) or "
+                        "exc_info=True inside an except block",
+                    )
+                )
 
         body_without_logging = [
-            stmt for stmt in handler.body
-            if not (isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call)
-                    and _is_log_call(stmt.value))
+            stmt
+            for stmt in handler.body
+            if not (
+                isinstance(stmt, ast.Expr)
+                and isinstance(stmt.value, ast.Call)
+                and _is_log_call(stmt.value)
+            )
         ]
         recovers = any(
-            isinstance(stmt, (ast.Raise, ast.Return, ast.Continue, ast.Break, ast.Assign, ast.AugAssign))
-            or isinstance(stmt, ast.Expr) and not isinstance(stmt.value, ast.Constant)
+            isinstance(
+                stmt, (ast.Raise, ast.Return, ast.Continue, ast.Break, ast.Assign, ast.AugAssign)
+            )
+            or (isinstance(stmt, ast.Expr) and not isinstance(stmt.value, ast.Constant))
             for stmt in body_without_logging
         )
         if not recovers:
-            found.append(Finding(
-                24, handler.name or "except", handler.lineno, JUDGE,
-                "exception caught, logged and swallowed: the caller is told it succeeded. "
-                "Recover explicitly or re-raise, unless this is a top-level boundary that "
-                "must not crash",
-            ))
+            found.append(
+                Finding(
+                    24,
+                    handler.name or "except",
+                    handler.lineno,
+                    JUDGE,
+                    "exception caught, logged and swallowed: the caller is told it succeeded. "
+                    "Recover explicitly or re-raise, unless this is a top-level boundary that "
+                    "must not crash",
+                )
+            )
     return found
 
 
@@ -618,11 +842,16 @@ def rule_14_mutable_value_object(tree: ast.Module, ctx: FileContext) -> list[Fin
                 for kw in dec.keywords
             )
             if not frozen:
-                found.append(Finding(
-                    14, cls.name, cls.lineno, JUDGE,
-                    "mutable dataclass in a public module: frozen=True unless this is an "
-                    "accumulator owned by one module",
-                ))
+                found.append(
+                    Finding(
+                        14,
+                        cls.name,
+                        cls.lineno,
+                        JUDGE,
+                        "mutable dataclass in a public module: frozen=True unless this is an "
+                        "accumulator owned by one module",
+                    )
+                )
     return found
 
 
@@ -632,15 +861,29 @@ def rule_15_barrel_init(tree: ast.Module, ctx: FileContext) -> list[Finding]:
         return []
     for node in tree.body:
         if isinstance(node, (ast.Import, ast.ImportFrom)):
-            return [Finding(15, "__init__.py", node.lineno, BLOCK,
-                            "barrel __init__.py: keep it empty and let callers import the "
-                            "module that owns the name")]
+            return [
+                Finding(
+                    15,
+                    "__init__.py",
+                    node.lineno,
+                    BLOCK,
+                    "barrel __init__.py: keep it empty and let callers import the "
+                    "module that owns the name",
+                )
+            ]
         if isinstance(node, ast.Assign) and any(
             isinstance(t, ast.Name) and t.id == "__all__" for t in node.targets
         ):
-            return [Finding(15, "__all__", node.lineno, BLOCK,
-                            "barrel __init__.py: keep it empty and let callers import the "
-                            "module that owns the name")]
+            return [
+                Finding(
+                    15,
+                    "__all__",
+                    node.lineno,
+                    BLOCK,
+                    "barrel __init__.py: keep it empty and let callers import the "
+                    "module that owns the name",
+                )
+            ]
     return []
 
 
@@ -678,7 +921,10 @@ def detect(source: str, path: Path, src_root: str = "src") -> list[Finding]:
     findings = sorted(findings, key=lambda f: (f.line, f.rule))
     log.debug(
         "%s: %d findings across %d rules (root module: %s)",
-        path.as_posix(), len(findings), len({f.rule for f in findings}), ctx.is_root_module,
+        path.as_posix(),
+        len(findings),
+        len({f.rule for f in findings}),
+        ctx.is_root_module,
     )
     return findings
 
@@ -699,7 +945,7 @@ def format_report(findings: Sequence[Finding]) -> str:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("path", type=Path)
+    parser.add_argument("paths", type=Path, nargs="+")
     parser.add_argument("--json", action="store_true", help="emit findings as JSON")
     parser.add_argument("--src-root", default="src", help="directory name that roots packages")
     parser.add_argument("--log-level", default=None, help="DEBUG, INFO, WARNING, ERROR")
@@ -707,22 +953,30 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     configure(level=args.log_level, log_file=None)
 
-    try:
-        source = args.path.read_text(encoding="utf-8")
-    except OSError as exc:
-        print(f"cannot read {args.path}: {exc}", file=sys.stderr)
-        return 2
-    try:
-        findings = detect(source, args.path, args.src_root)
-    except SyntaxError as exc:
-        print(f"{args.path} does not parse: {exc}", file=sys.stderr)
-        return 2
+    blocked = False
+    everything: list[Finding] = []
+    for path in args.paths:
+        try:
+            source = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            print(f"cannot read {path}: {exc}", file=sys.stderr)
+            return 2
+        try:
+            findings = detect(source, path, args.src_root)
+        except SyntaxError as exc:
+            print(f"{path} does not parse: {exc}", file=sys.stderr)
+            return 2
+        if findings and not args.json:
+            print(f"{path.as_posix()}:")
+            print(format_report(findings))
+        everything.extend(findings)
+        blocked = blocked or any(f.verdict == BLOCK for f in findings)
 
     if args.json:
-        print(json.dumps([asdict(f) for f in findings], indent=2))
-    else:
-        print(format_report(findings))
-    return 1 if any(f.verdict == BLOCK for f in findings) else 0
+        print(json.dumps([asdict(f) for f in everything], indent=2))
+    elif not everything:
+        print("no anti-patterns detected")
+    return 1 if blocked else 0
 
 
 if __name__ == "__main__":

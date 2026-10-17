@@ -49,6 +49,7 @@ def select_targets(dets: Sequence[Detection], cfg: Policy) -> list[Target]: ...
 def run(path: Path, cfg: Policy) -> None:
     write(select_targets(read(path), cfg))
 
+
 # bad: the rule is unreachable without a file on disk
 def select_targets(path: Path, cfg: Policy) -> list[Target]:
     dets = json.loads(path.read_text())
@@ -64,8 +65,9 @@ from their cause.
 def get_model(cfg: Settings) -> Model:
     return _load(cfg.model_path)
 
+
 # bad
-MODEL = _load(os.environ["MODEL_PATH"])   # fails at import, in every test session
+MODEL = _load(os.environ["MODEL_PATH"])  # fails at import, in every test session
 ```
 
 ## Declare a module's allowed imports where the module lives

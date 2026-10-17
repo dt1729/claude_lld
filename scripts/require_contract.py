@@ -16,11 +16,13 @@ than silent, which is the point: a gate nobody can see being bypassed is worse t
 
 from __future__ import annotations
 
+import ast
 import json
 import logging
 import os
 import sys
 import time
+from collections.abc import Callable
 from datetime import date
 from pathlib import Path
 from typing import Any, Final
@@ -41,10 +43,10 @@ from logsetup import configure, log_path
 
 log = logging.getLogger("lld.gate")
 
-WATCHED_TOOLS: Final = frozenset({"Write", "Edit", "MultiEdit"})
-
 #: Paths that carry no contract: tests, tooling, and anything generated.
-EXCLUDED_PARTS: Final = frozenset({"tests", "test", "scripts", "migrations", "_generated", "generated"})
+EXCLUDED_PARTS: Final = frozenset(
+    {"tests", "test", "scripts", "migrations", "_generated", "generated"}
+)
 EXCLUDED_NAMES: Final = frozenset({"conftest.py", "setup.py", "__init__.py"})
 
 #: Waivers on one module beyond this are evidence about the module, not the rule.
@@ -75,40 +77,59 @@ def in_scope(path: Path, src_root: str) -> bool:
     return not (set(parts) & EXCLUDED_PARTS)
 
 
-def resulting_source(tool: str, tool_input: dict[str, Any], current: str) -> str | None:
-    """The file content this call would produce, or None when it cannot be determined."""
-    if tool == "Write":
-        content = tool_input.get("content")
-        return content if isinstance(content, str) else None
-    if tool == "Edit":
-        old, new = tool_input.get("old_string"), tool_input.get("new_string")
+def _apply_write(tool_input: dict[str, Any], _current: str) -> str | None:
+    content = tool_input.get("content")
+    return content if isinstance(content, str) else None
+
+
+def _apply_edit(tool_input: dict[str, Any], current: str) -> str | None:
+    old, new = tool_input.get("old_string"), tool_input.get("new_string")
+    if not isinstance(old, str) or not isinstance(new, str):
+        return None
+    return current.replace(old, new, -1 if tool_input.get("replace_all") else 1)
+
+
+def _apply_multi_edit(tool_input: dict[str, Any], current: str) -> str | None:
+    edits = tool_input.get("edits")
+    if not isinstance(edits, list):
+        return None
+    out = current
+    for edit in edits:
+        old, new = edit.get("old_string"), edit.get("new_string")
         if not isinstance(old, str) or not isinstance(new, str):
             return None
-        return current.replace(old, new, -1 if tool_input.get("replace_all") else 1)
-    if tool == "MultiEdit":
-        edits = tool_input.get("edits")
-        if not isinstance(edits, list):
-            return None
-        out = current
-        for edit in edits:
-            old, new = edit.get("old_string"), edit.get("new_string")
-            if not isinstance(old, str) or not isinstance(new, str):
-                return None
-            out = out.replace(old, new, -1 if edit.get("replace_all") else 1)
-        return out
-    return None
+        out = out.replace(old, new, -1 if edit.get("replace_all") else 1)
+    return out
+
+
+#: One handler per watched tool. A closed set dispatched by lookup rather than a chain of
+#: string comparisons - rule 12, which this module's own detector raised against it.
+APPLIERS: Final[dict[str, Callable[[dict[str, Any], str], str | None]]] = {
+    "Write": _apply_write,
+    "Edit": _apply_edit,
+    "MultiEdit": _apply_multi_edit,
+}
+
+
+#: The tools the gate inspects: exactly those it knows how to apply.
+WATCHED_TOOLS: Final = frozenset(APPLIERS)
+
+
+def resulting_source(tool: str, tool_input: dict[str, Any], current: str) -> str | None:
+    """The file content this call would produce, or None when it cannot be determined."""
+    applier = APPLIERS.get(tool)
+    return applier(tool_input, current) if applier else None
 
 
 def count_public_names(source: str) -> int:
     """Top-level names a caller can reach, used to cross-check a declared depth."""
-    import ast
-
     try:
         tree = ast.parse(source)
     except SyntaxError:
         return 0
     return sum(
-        1 for node in tree.body
+        1
+        for node in tree.body
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
         and not node.name.startswith("_")
     )
@@ -146,7 +167,9 @@ def _findings_message(module: Path, blocking: list[Any], judging: list[Any], wai
             f"`| path | rule | date | reason |`, for example:"
         )
         example = judging[0]
-        lines.append(f"  {waiver_row(module, example.rule, date.today().isoformat(), 'why this stands')}")
+        lines.append(
+            f"  {waiver_row(module, example.rule, date.today().isoformat(), 'why this stands')}"
+        )
         lines.append("The reason is read by a human later, so make it one you would defend.")
     if waivers >= WAIVER_LIMIT:
         lines.append("")
@@ -183,7 +206,9 @@ def evaluate(payload: dict[str, Any], project_dir: Path, src_root: str = "src") 
         log.info("allow %s %s: resulting content could not be determined", tool, module.as_posix())
         return _allow()
 
-    log.info("checking %s %s (%s)", tool, module.as_posix(), "existing" if existed else "new module")
+    log.info(
+        "checking %s %s (%s)", tool, module.as_posix(), "existing" if existed else "new module"
+    )
 
     contract = project_dir / contract_path_for(module, src_root)
     contract_text = contract.read_text(encoding="utf-8") if contract.exists() else ""
@@ -192,13 +217,16 @@ def evaluate(payload: dict[str, Any], project_dir: Path, src_root: str = "src") 
     log.debug(
         "contract %s: %s, %d public names, %d validation errors",
         contract_path_for(module, src_root).as_posix(),
-        "present" if contract_text else "absent", public_names, len(errors),
+        "present" if contract_text else "absent",
+        public_names,
+        len(errors),
     )
 
     if not existed and (not contract_text or errors):
         log.info(
             "deny %s: new module, contract %s (%.0f ms)",
-            module.as_posix(), "invalid" if errors else "missing",
+            module.as_posix(),
+            "invalid" if errors else "missing",
             (time.perf_counter() - started) * 1000,
         )
         return _deny(_missing_contract_message(module, contract_path_for(module, src_root), errors))
@@ -220,13 +248,21 @@ def evaluate(payload: dict[str, Any], project_dir: Path, src_root: str = "src") 
 
     elapsed_ms = (time.perf_counter() - started) * 1000
     if not blocking and not judging:
-        log.info("allow %s: %d findings, all cleared (%.0f ms)", module.as_posix(), len(findings), elapsed_ms)
+        log.info(
+            "allow %s: %d findings, all cleared (%.0f ms)",
+            module.as_posix(),
+            len(findings),
+            elapsed_ms,
+        )
         return _allow()
 
     log.info(
         "deny %s: %d blocking, %d awaiting judgment - rules %s (%.0f ms)",
-        module.as_posix(), len(blocking), len(judging),
-        sorted({f.rule for f in (*blocking, *judging)}), elapsed_ms,
+        module.as_posix(),
+        len(blocking),
+        len(judging),
+        sorted({f.rule for f in (*blocking, *judging)}),
+        elapsed_ms,
     )
     return _deny(_findings_message(module, blocking, judging, waiver_count(waivers, module)))
 

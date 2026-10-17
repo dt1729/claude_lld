@@ -76,7 +76,9 @@ def merge_file(target: Path, generated: str) -> tuple[str, bool]:
     preserved = len(manual_blocks(existing))
     log.info(
         "%s: %s, %d manual block(s) preserved",
-        target.as_posix(), "changed" if result != existing else "unchanged", preserved,
+        target.as_posix(),
+        "changed" if result != existing else "unchanged",
+        preserved,
     )
     return result, result != existing
 

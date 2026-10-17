@@ -72,14 +72,18 @@ def add_contract(project: Path, name: str, text: str = VALID_CONTRACT) -> None:
 
 # --- scope ------------------------------------------------------------------------------
 
-@pytest.mark.parametrize("path", [
-    "src/pkg/tests/test_thing.py",
-    "src/pkg/conftest.py",
-    "src/pkg/__init__.py",
-    "scripts/tool.py",
-    "src/pkg/notes.md",
-    "docs/thing.py",
-])
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "src/pkg/tests/test_thing.py",
+        "src/pkg/conftest.py",
+        "src/pkg/__init__.py",
+        "scripts/tool.py",
+        "src/pkg/notes.md",
+        "docs/thing.py",
+    ],
+)
 def test_paths_outside_the_gate_are_allowed(path: str) -> None:
     assert not in_scope(Path(path), "src")
 
@@ -100,6 +104,7 @@ def test_a_tool_the_gate_does_not_watch_is_allowed(project: Path) -> None:
 
 # --- new modules need a contract --------------------------------------------------------
 
+
 def test_new_module_without_a_contract_is_denied(project: Path) -> None:
     result = evaluate(write_payload(project, "src/pkg/thing.py", CLEAN_MODULE), project)
     assert decision(result) == "deny"
@@ -116,7 +121,10 @@ def test_new_module_with_an_invalid_contract_is_denied_with_the_errors(project: 
 
 def test_new_module_with_a_valid_contract_and_clean_code_is_allowed(project: Path) -> None:
     add_contract(project, "pkg.thing.md")
-    assert decision(evaluate(write_payload(project, "src/pkg/thing.py", CLEAN_MODULE), project)) == "allow"
+    assert (
+        decision(evaluate(write_payload(project, "src/pkg/thing.py", CLEAN_MODULE), project))
+        == "allow"
+    )
 
 
 def test_editing_an_existing_module_needs_no_contract(project: Path) -> None:
@@ -136,6 +144,7 @@ def test_editing_an_existing_module_needs_no_contract(project: Path) -> None:
 
 
 # --- anti-pattern tiers -----------------------------------------------------------------
+
 
 def test_blocking_finding_is_denied_and_says_it_cannot_be_waived(project: Path) -> None:
     add_contract(project, "pkg.thing.md")
@@ -159,28 +168,34 @@ def test_recorded_waiver_lets_a_judge_finding_through(project: Path) -> None:
         "| src/pkg/thing.py | 8 | 2026-10-17 | the instance is a seam, substituted in tests |\n",
         encoding="utf-8",
     )
-    assert decision(evaluate(write_payload(project, "src/pkg/thing.py", JUDGE_MODULE), project)) == "allow"
+    assert (
+        decision(evaluate(write_payload(project, "src/pkg/thing.py", JUDGE_MODULE), project))
+        == "allow"
+    )
 
 
 def test_a_waiver_does_not_excuse_a_blocking_finding(project: Path) -> None:
     add_contract(project, "pkg.thing.md")
     (project / "docs" / "contracts" / "_waivers.md").write_text(
-        "| src/pkg/thing.py | 1 | 2026-10-17 | we like globals |\n", encoding="utf-8",
+        "| src/pkg/thing.py | 1 | 2026-10-17 | we like globals |\n",
+        encoding="utf-8",
     )
-    assert decision(evaluate(write_payload(project, "src/pkg/thing.py", BLOCKING_MODULE), project)) == "deny"
+    assert (
+        decision(evaluate(write_payload(project, "src/pkg/thing.py", BLOCKING_MODULE), project))
+        == "deny"
+    )
 
 
 def test_accumulated_waivers_are_called_out(project: Path) -> None:
     add_contract(project, "pkg.thing.md")
-    rows = "".join(
-        f"| src/pkg/thing.py | {rule} | 2026-10-17 | reason |\n" for rule in (2, 3, 10)
-    )
+    rows = "".join(f"| src/pkg/thing.py | {rule} | 2026-10-17 | reason |\n" for rule in (2, 3, 10))
     (project / "docs" / "contracts" / "_waivers.md").write_text(rows, encoding="utf-8")
     result = evaluate(write_payload(project, "src/pkg/thing.py", JUDGE_MODULE), project)
     assert "already carries 3 waivers" in reason(result)
 
 
 # --- resulting source -------------------------------------------------------------------
+
 
 def test_edit_applies_one_replacement_by_default() -> None:
     assert resulting_source("Edit", {"old_string": "a", "new_string": "b"}, "aa") == "ba"
@@ -192,10 +207,12 @@ def test_edit_applies_all_replacements_when_asked() -> None:
 
 
 def test_multiedit_applies_edits_in_order() -> None:
-    edits = {"edits": [
-        {"old_string": "a", "new_string": "b"},
-        {"old_string": "b", "new_string": "c"},
-    ]}
+    edits = {
+        "edits": [
+            {"old_string": "a", "new_string": "b"},
+            {"old_string": "b", "new_string": "c"},
+        ]
+    }
     assert resulting_source("MultiEdit", edits, "a") == "c"
 
 
@@ -205,10 +222,14 @@ def test_malformed_edit_yields_no_source() -> None:
 
 def test_unparseable_result_is_allowed_rather_than_guessed_at(project: Path) -> None:
     add_contract(project, "pkg.thing.md")
-    assert decision(evaluate(write_payload(project, "src/pkg/thing.py", "def broken(:\n"), project)) == "allow"
+    assert (
+        decision(evaluate(write_payload(project, "src/pkg/thing.py", "def broken(:\n"), project))
+        == "allow"
+    )
 
 
 # --- depth cross-check ------------------------------------------------------------------
+
 
 def test_public_names_are_counted_for_the_depth_check() -> None:
     src = "def a() -> None: ...\ndef _b() -> None: ...\nclass C: ...\n"
@@ -220,7 +241,9 @@ def test_unparseable_source_counts_no_public_names() -> None:
 
 
 def test_junior_contract_is_refused_for_a_wide_new_module(project: Path) -> None:
-    add_contract(project, "pkg.thing.md", VALID_CONTRACT.replace("**Depth:** senior", "**Depth:** junior"))
+    add_contract(
+        project, "pkg.thing.md", VALID_CONTRACT.replace("**Depth:** senior", "**Depth:** junior")
+    )
     wide = "".join(f"def f{i}() -> None:\n    pass\n\n\n" for i in range(4))
     result = evaluate(write_payload(project, "src/pkg/thing.py", wide), project)
     assert decision(result) == "deny"

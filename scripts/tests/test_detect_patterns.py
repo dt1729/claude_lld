@@ -25,6 +25,7 @@ def verdict_of(source: str, rule: int, path: Path = ROOT_MODULE) -> str:
 
 # --- 1: singleton accessor --------------------------------------------------------------
 
+
 def test_classmethod_returning_cached_instance_blocks() -> None:
     src = """
 class Pool:
@@ -61,6 +62,7 @@ class Pool:
 
 # --- 2: module-level mutable state ------------------------------------------------------
 
+
 def test_mutated_module_dict_blocks() -> None:
     src = """
 SEEN = {}
@@ -84,6 +86,7 @@ def pick(name: str) -> int:
 
 # --- 3: import-time side effects --------------------------------------------------------
 
+
 def test_bare_module_level_call_blocks() -> None:
     assert 3 in rules("load_model('big.pt')\n")
 
@@ -102,6 +105,7 @@ def test_module_level_assignment_from_unknown_call_is_judged() -> None:
 
 
 # --- 4, 5: inheritance ------------------------------------------------------------------
+
 
 def test_inheriting_own_concrete_class_blocks() -> None:
     src = """
@@ -152,6 +156,7 @@ class Leaf(Middle):
 
 
 # --- 6, 7, 9: class shapes --------------------------------------------------------------
+
 
 def test_all_abstract_abc_blocks() -> None:
     src = """
@@ -216,6 +221,7 @@ class MathUtils:
 
 # --- 8, 10: shapes that need judgment ---------------------------------------------------
 
+
 def test_class_with_init_and_one_method_is_judged_not_blocked() -> None:
     src = """
 class ReportGenerator:
@@ -260,6 +266,7 @@ def get_user(uid: str) -> int:
 
 # --- 12: stringly-typed mode ------------------------------------------------------------
 
+
 def test_str_param_compared_twice_is_judged() -> None:
     src = """
 def run(mode: str) -> int:
@@ -284,6 +291,7 @@ def run(name: str) -> int:
 
 # --- 13: environment reads --------------------------------------------------------------
 
+
 def test_env_read_in_library_module_blocks() -> None:
     src = """
 import os
@@ -305,6 +313,7 @@ def load() -> str:
 
 
 # --- 14: mutable value objects ----------------------------------------------------------
+
 
 def test_mutable_dataclass_in_root_module_is_judged() -> None:
     src = """
@@ -342,6 +351,7 @@ class Accumulator:
 
 # --- 15: barrel __init__ ----------------------------------------------------------------
 
+
 def test_init_with_imports_blocks() -> None:
     src = "from pkg.thing import run\n"
     assert 15 in rules(src, Path("src/pkg/__init__.py"))
@@ -352,6 +362,7 @@ def test_empty_init_is_clean() -> None:
 
 
 # --- reporting and failure modes --------------------------------------------------------
+
 
 def test_clean_file_reports_nothing() -> None:
     src = """

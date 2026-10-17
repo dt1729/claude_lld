@@ -1,0 +1,35 @@
+# Dependency direction and the entry-point boundary, enforced rather than reviewed.
+# Install:  pip install import-linter && lint-imports
+#
+# Replace <pkg> with the package name and list the real packages under [importlinter].
+
+[importlinter]
+root_packages =
+    <pkg>
+include_external_packages = True
+
+[importlinter:contract:no-cycles]
+name = No import cycles
+type = independence
+modules =
+    <pkg>.<feature_a>
+    <pkg>.<feature_b>
+
+[importlinter:contract:layers]
+name = Dependencies point one way
+type = layers
+layers =
+    <pkg>.cli
+    <pkg>.app
+    <pkg>.domain
+# The domain imports nothing above it. Add a layer per tier; the order is the direction.
+
+[importlinter:contract:entry-point-boundary]
+name = Subfolders are private to their package
+type = forbidden
+source_modules =
+    <pkg>.<other_feature>
+forbidden_modules =
+    <pkg>.<feature_a>.lib
+# One contract per pair of packages whose internals must stay private. A package's root
+# modules are its public surface; everything in a subfolder is off limits to outsiders.

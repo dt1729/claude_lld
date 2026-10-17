@@ -15,6 +15,7 @@ def publish_report(run: Run, sink: Sink) -> None:
     rendered = render_markdown(report)
     sink.write(rendered)
 
+
 # bad: two orchestration lines, then byte-level work
 def publish_report(run: Run, sink: Sink) -> None:
     report = summarise(run)
@@ -31,6 +32,7 @@ Callers depend on what is true afterwards; mechanisms change and leave the name 
 ```python
 # good
 def ensure_calibrated(cam: Camera) -> Calibration: ...
+
 
 # bad: renaming the cache breaks the name's promise
 def check_cache_then_run_calibration(cam: Camera) -> Calibration: ...
@@ -62,6 +64,7 @@ def load(path: Path) -> Config:
         raise ConfigMissingError(path)
     return _parse(path.read_text())
 
+
 # bad
 def load(path: Path) -> Config:
     if path.exists():
@@ -76,8 +79,11 @@ A type that cannot express the bad state removes the check, and the test for the
 
 ```python
 # good
-Confidence = NewType("Confidence", float)   # constructed only via validated factory
+Confidence = NewType("Confidence", float)  # constructed only via validated factory
+
+
 def make_confidence(v: float) -> Confidence: ...
+
 
 # bad: every consumer re-validates, and one of them forgets
 def score(v: float) -> float:  # 0..1, honest
@@ -107,8 +113,9 @@ for a value. Mixed functions force the caller to read the body.
 
 ```python
 # good
-def next_frame(self) -> Frame | None: ...       # query, no visible effect
-def advance(self) -> None: ...                  # command
+def next_frame(self) -> Frame | None: ...  # query, no visible effect
+def advance(self) -> None: ...  # command
+
 
 # bad: name says query, body consumes the buffer
 def peek(self) -> Frame | None:

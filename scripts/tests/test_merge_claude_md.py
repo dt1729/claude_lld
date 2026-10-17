@@ -84,6 +84,7 @@ def test_a_file_with_no_manual_markers_yields_none() -> None:
 
 # --- file-level behaviour ---------------------------------------------------------------
 
+
 def test_merge_file_reports_a_change_on_first_write(tmp_path: Path) -> None:
     target = tmp_path / "CLAUDE.md"
     _, changed = merge_file(target, GENERATED)

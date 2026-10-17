@@ -27,6 +27,7 @@ def verdict_of(source: str, rule: int, path: Path = LIBRARY) -> str:
 
 # --- 19: print in a package module ------------------------------------------------------
 
+
 def test_print_in_a_library_module_blocks() -> None:
     assert 19 in rules("def run() -> None:\n    print('done')\n")
 
@@ -42,6 +43,7 @@ def test_a_log_call_is_not_a_print() -> None:
 
 
 # --- 20: configuration below the composition root ---------------------------------------
+
 
 def test_basicconfig_in_a_library_blocks() -> None:
     src = "import logging\n\ndef setup() -> None:\n    logging.basicConfig(level=logging.INFO)\n"
@@ -65,6 +67,7 @@ def test_merely_emitting_is_clean() -> None:
 
 
 # --- 21: eager formatting ---------------------------------------------------------------
+
 
 def test_fstring_in_a_log_call_blocks() -> None:
     src = "def run(name: str) -> None:\n    log.info(f'loaded {name}')\n"
@@ -91,6 +94,7 @@ def test_an_fstring_outside_a_log_call_is_clean() -> None:
 
 # --- 22: literal logger name ------------------------------------------------------------
 
+
 def test_logger_named_by_a_literal_blocks() -> None:
     assert 22 in rules("import logging\nlog = logging.getLogger('mypkg.thing')\n")
 
@@ -104,6 +108,7 @@ def test_a_deliberate_tree_root_in_the_composition_root_is_clean() -> None:
 
 
 # --- 23: exception logged without its traceback -----------------------------------------
+
 
 def test_log_error_in_a_handler_without_traceback_blocks() -> None:
     src = """
@@ -144,10 +149,13 @@ def run() -> None:
 
 def test_log_error_outside_a_handler_is_clean() -> None:
     """Not every error log is about an exception."""
-    assert 23 not in rules("def run(ok: bool) -> None:\n    if not ok:\n        log.error('bad state %s', ok)\n")
+    assert 23 not in rules(
+        "def run(ok: bool) -> None:\n    if not ok:\n        log.error('bad state %s', ok)\n"
+    )
 
 
 # --- 24: caught, logged, swallowed ------------------------------------------------------
+
 
 def test_handler_that_only_logs_is_judged() -> None:
     src = """
@@ -198,6 +206,7 @@ def run() -> int:
 
 
 # --- the detector still passes its own rules ---------------------------------------------
+
 
 def test_the_gate_scripts_are_clean_under_the_logging_rules() -> None:
     """Dogfood: the scripts added logging, and must satisfy the rules they enforce."""

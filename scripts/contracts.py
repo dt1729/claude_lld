@@ -31,6 +31,11 @@ REQUIRED_SECTIONS: Final = (
 
 VALID_STATUS: Final = frozenset({"draft", "accepted", "superseded"})
 VALID_DEPTH: Final = frozenset({"junior", "senior", "principal"})
+LOG_LEVELS: Final = ("debug", "info", "warning", "error")
+
+#: Above this, a module is too wide for its author to call the work junior.
+MAX_JUNIOR_PUBLIC_NAMES: Final = 2
+MIN_TEST_BEHAVIOURS: Final = 3
 
 #: Placeholder text that means a section was templated and never filled.
 PLACEHOLDER: Final = re.compile(r"^(TODO|TBD|\.\.\.|<[^>]+>|\{\{[^}]+\}\})\s*$", re.MULTILINE)
@@ -60,7 +65,7 @@ def contract_path_for(module_path: Path, src_root: str = "src") -> Path:
     """
     parts = list(module_path.with_suffix("").as_posix().split("/"))
     if src_root in parts:
-        parts = parts[parts.index(src_root) + 1:]
+        parts = parts[parts.index(src_root) + 1 :]
     return Path(CONTRACT_DIR) / f"{'.'.join(parts)}.md"
 
 
@@ -70,7 +75,7 @@ def _sections(text: str) -> dict[str, str]:
     out: dict[str, str] = {}
     for i, match in enumerate(matches):
         end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-        out[match.group(1).strip().lower()] = text[match.end():end].strip()
+        out[match.group(1).strip().lower()] = text[match.end() : end].strip()
     return out
 
 
@@ -79,22 +84,21 @@ def _field(text: str, name: str) -> str | None:
     return match.group(1).strip().lower() if match else None
 
 
-def validate_contract(text: str, *, public_names: int = 0) -> list[str]:
-    """Return the reasons this contract is unusable. Empty means it validates.
-
-    ``public_names`` cross-checks the declared depth: a module with a wide public surface
-    cannot be declared junior, which is the loophole a self-assessed depth would otherwise
-    leave open.
-    """
+def _check_sections_present(sections: dict[str, str]) -> list[str]:
+    """Every required heading exists and carries something other than a placeholder."""
     errors: list[str] = []
-    sections = _sections(text)
-
     for required in REQUIRED_SECTIONS:
         body = sections.get(required.lower())
         if body is None:
             errors.append(f"missing section: ## {required}")
         elif not body or PLACEHOLDER.search(body):
             errors.append(f"section is empty or still a placeholder: ## {required}")
+    return errors
+
+
+def _check_header_fields(text: str, public_names: int) -> list[str]:
+    """Status and Depth, including the cross-check that keeps a wide module off junior."""
+    errors: list[str] = []
 
     status = _field(text, "Status")
     if status is None:
@@ -107,11 +111,17 @@ def validate_contract(text: str, *, public_names: int = 0) -> list[str]:
         errors.append("missing **Depth:** line")
     elif depth not in VALID_DEPTH:
         errors.append(f"Depth must be one of {sorted(VALID_DEPTH)}, got {depth!r}")
-    elif depth == "junior" and public_names > 2:
+    elif depth == "junior" and public_names > MAX_JUNIOR_PUBLIC_NAMES:
         errors.append(
             f"Depth junior is not available to a module with {public_names} public names; "
             "use senior or principal"
         )
+    return errors
+
+
+def _check_section_content(sections: dict[str, str]) -> list[str]:
+    """What each section must actually contain, beyond being non-empty."""
+    errors: list[str] = []
 
     interface = sections.get("interface", "")
     if interface and "```" not in interface:
@@ -121,24 +131,45 @@ def validate_contract(text: str, *, public_names: int = 0) -> list[str]:
     if dependencies and "may import" not in dependencies.lower():
         errors.append("## Dependencies has no 'May import' line")
 
-    errors_section = sections.get("errors", "")
-    if errors_section and "|" not in errors_section and "no error modes" not in errors_section.lower():
+    errors_section = sections.get("errors", "").lower()
+    if errors_section and "|" not in errors_section and "no error modes" not in errors_section:
         errors.append("## Errors needs a table, or the sentence 'No error modes.'")
 
-    observability = sections.get("observability", "")
-    if observability and "no logging" not in observability.lower():
-        levels = ("debug", "info", "warning", "error")
-        if not any(level in observability.lower() for level in levels):
-            errors.append(
-                "## Observability names no level; say what is logged at INFO and what "
-                "raises it, or state 'No logging.'"
-            )
+    observability = sections.get("observability", "").lower()
+    if (
+        observability
+        and "no logging" not in observability
+        and not any(level in observability for level in LOG_LEVELS)
+    ):
+        errors.append(
+            "## Observability names no level; say what is logged at INFO and what "
+            "raises it, or state 'No logging.'"
+        )
+    return errors
+
+
+def validate_contract(text: str, *, public_names: int = 0) -> list[str]:
+    """Return the reasons this contract is unusable. Empty means it validates.
+
+    ``public_names`` cross-checks the declared depth: a module with a wide public surface
+    cannot be declared junior, which is the loophole a self-assessed depth would otherwise
+    leave open.
+    """
+    sections = _sections(text)
+    errors = [
+        *_check_sections_present(sections),
+        *_check_header_fields(text, public_names),
+        *_check_section_content(sections),
+    ]
 
     tests = sections.get("tests", "")
     if tests:
         bullets = [ln for ln in tests.splitlines() if ln.lstrip().startswith(("-", "*"))]
-        if len(bullets) < 3:
-            errors.append(f"## Tests lists {len(bullets)} behaviours; at least 3 are required")
+        if len(bullets) < MIN_TEST_BEHAVIOURS:
+            errors.append(
+                f"## Tests lists {len(bullets)} behaviours; at least "
+                f"{MIN_TEST_BEHAVIOURS} are required"
+            )
 
     return errors
 
@@ -150,12 +181,14 @@ def parse_waivers(text: str) -> list[Waiver]:
         path = match.group("path")
         if path.lower() in ("path", "---", ":---"):
             continue
-        waivers.append(Waiver(
-            path=path,
-            rule=int(match.group("rule")),
-            date=match.group("date"),
-            reason=match.group("reason"),
-        ))
+        waivers.append(
+            Waiver(
+                path=path,
+                rule=int(match.group("rule")),
+                date=match.group("date"),
+                reason=match.group("reason"),
+            )
+        )
     return waivers
 
 

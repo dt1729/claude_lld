@@ -11,13 +11,15 @@ A constructed dependency is a hidden seam: tests must patch an import to reach i
 # good
 def run(source: FrameSource, sink: Sink, cfg: Settings) -> Report: ...
 
+
 # composition root, one place in the program
 def main() -> None:
     run(RtspCamera(cfg.url), FileSink(cfg.out), cfg)
 
+
 # bad
 def run(cfg: Settings) -> Report:
-    source = RtspCamera(cfg.url)      # the test now needs monkeypatch
+    source = RtspCamera(cfg.url)  # the test now needs monkeypatch
 ```
 
 ## Build one frozen config at the entry point and pass it down
@@ -32,9 +34,10 @@ class Settings:
     model_path: Path
     threshold: float = 0.5
 
+
 # bad
 def detect(frame: Frame) -> list[Box]:
-    thr = float(os.environ.get("THRESH", "0.5"))   # input appears mid-call-stack
+    thr = float(os.environ.get("THRESH", "0.5"))  # input appears mid-call-stack
 ```
 
 ## Keep defaults in the config type
@@ -63,10 +66,13 @@ change to shared code, and every extension a merge conflict.
 # good
 def run(frames: Iterable[Frame], score: Callable[[Frame], float]) -> Report: ...
 
+
 # bad
 def run(frames: Iterable[Frame], mode: str) -> Report:
-    if mode == "fast": ...
-    elif mode == "accurate": ...     # every new mode edits this function
+    if mode == "fast":
+        ...
+    elif mode == "accurate":
+        ...  # every new mode edits this function
 ```
 
 ## Hold no mutable state at module level
@@ -79,6 +85,7 @@ process, and makes call order significant.
 class Tracker:
     def __init__(self) -> None:
         self._seen: dict[str, int] = {}
+
 
 # bad
 _SEEN: dict[str, int] = {}
@@ -93,8 +100,9 @@ used by a caller with a different budget.
 # good
 def fetch(url: str, *, timeout_s: float, retries: int = 0) -> bytes: ...
 
+
 # bad
 def fetch(url: str) -> bytes:
-    for _ in range(3):              # the caller with a 50 ms budget is stuck
+    for _ in range(3):  # the caller with a 50 ms budget is stuck
         ...
 ```

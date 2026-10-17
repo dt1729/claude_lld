@@ -47,3 +47,44 @@ one measured. Expect the same of the others.
 **Still open.** 24 `print` findings came from forcing `scripts/` to be the package root for
 this test. In normal use the gate excludes `scripts/` entirely, so they would never fire —
 which means the rule is untested for the case it actually governs, not that it is wrong.
+
+---
+
+## 002 — The detector's CLI could only take one file
+
+**Date:** 2026-10-17
+**Found by:** wiring it into pre-commit and running it
+
+**What happened.** `pre-commit` passes every staged file as an argument. The parser declared
+a single positional `path`, so the hook failed with
+`unrecognized arguments: scripts/contracts.py scripts/logsetup.py ...` the first time it ran
+for real. Every batch caller — pre-commit, a shell glob, CI — was broken.
+
+**Why it survived 134 tests.** All of them call `detect()`, the library function. Nothing
+exercised `main()`. The tests covered the logic and skipped the interface, which is the
+failure mode the plugin's own guidance warns about: *the interface is the test surface*.
+
+**What changed.** `paths` is now `nargs="+"`, findings are grouped per file, and the exit
+code is the OR across them.
+
+---
+
+## 003 — The detector caught a stringly-typed parameter in the gate itself
+
+**Date:** 2026-10-17
+**Found by:** running the detector over its own repository in pre-commit
+
+**What happened.** Rule 12 fired on `resulting_source(tool: str, ...)` in
+`require_contract.py`: a `str` parameter compared against three string literals
+(`"Write"`, `"Edit"`, `"MultiEdit"`). Exactly the shape `CATALOGUE.md` says to replace with
+a dispatch when the set is closed — and the set is closed, because it is the same set the
+gate watches.
+
+**What changed.** Three named appliers in a `dict`, dispatched by lookup.
+`WATCHED_TOOLS` is now derived from that dict rather than declared separately, so the tools
+the gate watches and the tools it knows how to apply cannot drift apart.
+
+**Why this one matters.** It is the first finding the system produced against code written
+*after* the rule existed, by an author who had read it. Guidance alone did not prevent it;
+the detector did. That is the argument for mechanical enforcement, observed rather than
+asserted.

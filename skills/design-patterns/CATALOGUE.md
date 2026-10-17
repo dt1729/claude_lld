@@ -29,9 +29,11 @@ def main() -> None:
     pool = ConnectionPool(cfg.dsn, size=cfg.pool_size)
     run(pool, cfg)
 
+
 # bad — the decision is now unavailable to every caller forever
 class ConnectionPool:
     _instance: ConnectionPool | None = None
+
     @classmethod
     def instance(cls) -> ConnectionPool: ...
 ```
@@ -62,6 +64,7 @@ def make_source(cfg: Settings) -> FrameSource:
         return RtspCamera(cfg.url, timeout_s=cfg.timeout_s)
     return VideoFile(Path(cfg.url))
 
+
 # bad
 def make_detector(cfg: Settings) -> Detector:
     return Detector(cfg)
@@ -89,6 +92,7 @@ only when the implementations genuinely come from outside your repo.
 ```python
 # good — enumerable, greppable, no import-order dependency
 BACKENDS: Final = {"yolo": make_yolo, "rtdetr": make_rtdetr}
+
 
 # use only for true third-party extension
 @register("yolo")
@@ -136,6 +140,8 @@ and a half-built object must not be usable.
 class Query:
     table: str
     limit: int = 100
+
+
 q2 = replace(q, limit=10)
 
 # bad — six methods and a mutable object to avoid four keyword arguments
@@ -180,7 +186,9 @@ with VideoFile(path) as src:
     run(src)
 
 # bad: the exception path leaks the handle
-src = VideoFile(path); run(src); src.close()
+src = VideoFile(path)
+run(src)
+src.close()
 ```
 
 ---
@@ -193,8 +201,11 @@ that state**, or **is the thing that varies at a seam**. Otherwise write a funct
 ```python
 # bad: constructed, called once, discarded
 class ReportGenerator:
-    def __init__(self, run: Run) -> None: self._run = run
+    def __init__(self, run: Run) -> None:
+        self._run = run
+
     def generate(self) -> str: ...
+
 
 # good
 def generate_report(run: Run) -> str: ...

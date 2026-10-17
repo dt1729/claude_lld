@@ -81,12 +81,17 @@ def without(section: str) -> str:
 
 # --- contract_path_for ------------------------------------------------------------------
 
+
 def test_module_maps_to_dotted_contract_path() -> None:
-    assert contract_path_for(Path("src/detection/pipeline.py")) == Path("docs/contracts/detection.pipeline.md")
+    assert contract_path_for(Path("src/detection/pipeline.py")) == Path(
+        "docs/contracts/detection.pipeline.md"
+    )
 
 
 def test_subfolder_module_keeps_full_dotted_path() -> None:
-    assert contract_path_for(Path("src/detection/lib/nms.py")) == Path("docs/contracts/detection.lib.nms.md")
+    assert contract_path_for(Path("src/detection/lib/nms.py")) == Path(
+        "docs/contracts/detection.lib.nms.md"
+    )
 
 
 def test_path_outside_src_root_still_maps() -> None:
@@ -96,12 +101,16 @@ def test_path_outside_src_root_still_maps() -> None:
 
 # --- validate_contract ------------------------------------------------------------------
 
+
 def test_complete_contract_validates() -> None:
     assert validate_contract(VALID) == []
 
 
 def test_missing_section_is_reported() -> None:
-    text = VALID.replace("## Deletion test\n\nOrdering and calibration caching would reappear in cli and benchmark.\n", "")
+    text = VALID.replace(
+        "## Deletion test\n\nOrdering and calibration caching would reappear in cli and benchmark.\n",
+        "",
+    )
     assert any("Deletion test" in e for e in validate_contract(text))
 
 
@@ -115,7 +124,10 @@ def test_placeholder_section_is_reported() -> None:
 
 
 def test_interface_without_a_code_block_is_reported() -> None:
-    text = VALID.replace("```python\ndef run(source: FrameSource, cfg: Settings) -> Iterator[Detection]\n```", "run takes a source")
+    text = VALID.replace(
+        "```python\ndef run(source: FrameSource, cfg: Settings) -> Iterator[Detection]\n```",
+        "run takes a source",
+    )
     assert any("code block" in e for e in validate_contract(text))
 
 
@@ -139,7 +151,10 @@ def test_errors_section_accepts_the_explicit_none_sentence() -> None:
 
 
 def test_unknown_status_is_reported() -> None:
-    assert any("Status" in e for e in validate_contract(VALID.replace("**Status:** accepted", "**Status:** wip")))
+    assert any(
+        "Status" in e
+        for e in validate_contract(VALID.replace("**Status:** accepted", "**Status:** wip"))
+    )
 
 
 def test_junior_depth_is_refused_for_a_wide_module() -> None:
@@ -165,8 +180,9 @@ def test_missing_observability_section_is_reported() -> None:
 
 def test_observability_naming_no_level_is_reported() -> None:
     """A section that says something was considered, without saying what, is not an answer."""
-    text = VALID.replace("- **INFO** run.complete: run id, frame count, duration.",
-                         "- we log some things")
+    text = VALID.replace(
+        "- **INFO** run.complete: run id, frame count, duration.", "- we log some things"
+    )
     assert any("names no level" in e for e in validate_contract(text))
 
 
@@ -192,7 +208,10 @@ LEDGER = """# Waivers
 
 def test_ledger_rows_parse_and_skip_the_header() -> None:
     waivers = parse_waivers(LEDGER)
-    assert [(w.path, w.rule) for w in waivers] == [("src/pkg/thing.py", 8), ("src/pkg/other.py", 14)]
+    assert [(w.path, w.rule) for w in waivers] == [
+        ("src/pkg/thing.py", 8),
+        ("src/pkg/other.py", 14),
+    ]
 
 
 def test_matching_waiver_is_found() -> None:

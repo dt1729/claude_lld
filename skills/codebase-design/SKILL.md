@@ -108,6 +108,7 @@ tests can substitute without patching.
 # good: the seam is a parameter
 def run(source: FrameSource, detector: Detector) -> Report: ...
 
+
 # bad: the seam is buried, and the test has to monkeypatch an import
 def run() -> Report:
     source = RtspCamera(os.environ["CAM_URL"])

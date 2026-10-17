@@ -39,12 +39,16 @@ def reset_logger() -> None:
 
 # --- level resolution -------------------------------------------------------------------
 
-@pytest.mark.parametrize(("given", "expected"), [
-    ("DEBUG", logging.DEBUG),
-    ("info", logging.INFO),
-    ("  Warning  ", logging.WARNING),
-    ("ERROR", logging.ERROR),
-])
+
+@pytest.mark.parametrize(
+    ("given", "expected"),
+    [
+        ("DEBUG", logging.DEBUG),
+        ("info", logging.INFO),
+        ("  Warning  ", logging.WARNING),
+        ("ERROR", logging.ERROR),
+    ],
+)
 def test_known_levels_resolve(given: str, expected: int) -> None:
     assert resolve_level(given) == expected
 
@@ -59,6 +63,7 @@ def test_unknown_level_degrades_to_info_rather_than_failing() -> None:
 
 
 # --- handler configuration --------------------------------------------------------------
+
 
 def test_configure_sets_the_requested_level() -> None:
     assert configure(level="DEBUG").level == logging.DEBUG
@@ -101,6 +106,7 @@ def test_log_path_honours_an_override() -> None:
 
 # --- the protocol guarantee ---------------------------------------------------------------
 
+
 def test_gate_stdout_is_pure_json_even_at_debug_level(tmp_path: Path) -> None:
     """Run the real hook as a subprocess and parse its stdout. Nothing else may be there."""
     (tmp_path / "src" / "pkg").mkdir(parents=True)
@@ -130,9 +136,18 @@ def test_merge_stdout_mode_emits_only_the_document(tmp_path: Path) -> None:
     generated = tmp_path / "gen.md"
     generated.write_text("# pkg\n\nBody\n", encoding="utf-8")
     result = subprocess.run(
-        [sys.executable, str(SCRIPTS / "merge_claude_md.py"),
-         str(tmp_path / "CLAUDE.md"), "--generated", str(generated),
-         "--stdout", "--log-level", "DEBUG"],
-        capture_output=True, text=True, check=False,
+        [
+            sys.executable,
+            str(SCRIPTS / "merge_claude_md.py"),
+            str(tmp_path / "CLAUDE.md"),
+            "--generated",
+            str(generated),
+            "--stdout",
+            "--log-level",
+            "DEBUG",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert result.stdout == "# pkg\n\nBody\n"

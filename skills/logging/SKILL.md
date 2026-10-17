@@ -49,12 +49,15 @@ only the application knows whether output goes to a terminal, a file, or a log s
 # good, in a library module
 log = logging.getLogger(__name__)
 
+
 def load(path: Path) -> Calibration:
     log.debug("reading calibration from %s", path)
+
 
 # good, in the application's composition root, once
 def main() -> None:
     logging.basicConfig(level=cfg.log_level, format=cfg.log_format)
+
 
 # bad, in a library: steals a decision the caller cannot take back
 logging.basicConfig(level=logging.INFO)

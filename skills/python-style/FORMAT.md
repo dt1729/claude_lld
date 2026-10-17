@@ -14,6 +14,7 @@ def load_calibration(path: Path) -> Calibration: ...
 def is_saturated(px: int) -> bool: ...
 def has_expired(t: Token, now: datetime) -> bool: ...
 
+
 # bad
 def calibration(path: Path) -> Calibration: ...
 def saturated(px: int) -> bool: ...
@@ -28,9 +29,10 @@ A consistent prefix tells the reader a new object comes back and nothing else ha
 def make_tracker(cfg: Settings) -> Tracker: ...
 def from_yaml(text: str) -> Settings: ...
 
+
 # bad
 def tracker_setup(cfg: Settings) -> Tracker: ...
-def get_settings(text: str) -> Settings: ...     # "get" implies retrieval, not parsing
+def get_settings(text: str) -> Settings: ...  # "get" implies retrieval, not parsing
 ```
 
 ## Put the unit in the name of every physical quantity
@@ -45,7 +47,7 @@ distance_m: float
 mass_kg: float
 
 # bad
-timeout: float      # seconds? milliseconds? the caller guesses
+timeout: float  # seconds? milliseconds? the caller guesses
 ```
 
 ## Spell names out, except for domain-standard abbreviations
@@ -85,6 +87,7 @@ def load_calibration(path: Path) -> Calibration:
     CalibrationInvalidError if the schema version is newer than this build.
     """
 
+
 # bad
 def load_calibration(path: Path) -> Calibration:
     """Load calibration.
@@ -108,10 +111,13 @@ from force the caller to know the layout.
 ```python
 # good
 class CalibrationMissingError(DetectionError): ...
+
+
 class SchemaTooNewError(DetectionError): ...
 
+
 # bad
-class PipelineError(Exception): ...      # raised for six unrelated conditions
+class PipelineError(Exception): ...  # raised for six unrelated conditions
 ```
 
 ## Write a TODO with an owner and a trigger

@@ -1,0 +1,48 @@
+# The mechanical floor. Everything here is enforced before a commit exists, so the
+# markdown never has to restate it and review never has to catch it.
+# Install once:  pip install pre-commit && pre-commit install
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.1
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy --strict
+        entry: python -m mypy --config-file mypy.ini
+        language: system
+        types: [python]
+        pass_filenames: false
+        args: [scripts]
+
+      - id: pytest
+        name: pytest
+        entry: python -m pytest scripts/tests -q
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      # The plugin's own detector, run over whatever is being committed. Blocking
+      # findings fail the commit; judgment-tier findings are reported and allowed,
+      # because a person is present at commit time to weigh them.
+      - id: lld-anti-patterns
+        name: lld anti-patterns
+        entry: python scripts/detect_patterns.py
+        language: system
+        types: [python]
+        exclude: ^scripts/tests/
