@@ -29,6 +29,14 @@ mechanically and handed to the model with the evidence, because the shape alone 
 | 16 | Deep import into another package subfolder | AST (import-linter) |
 | 17 | Logic inside an adapter | judge |
 | 18 | Exception type with no distinct caller response | judge |
+| 19 | `print` in a package module | AST |
+| 20 | Logging configured outside the composition root | AST |
+| 21 | Eager f-string formatting in a log call | AST |
+| 22 | Logger named by a string literal | AST |
+| 23 | Exception logged without its traceback | AST |
+| 24 | Exception caught, logged, and swallowed | AST->judge |
+| 25 | Log line with no subject | judge |
+| 26 | Secret or payload in a log line | judge |
 
 ---
 
@@ -148,7 +156,11 @@ body.
 An environment read outside `main`, the CLI or a settings loader hides an input in the middle
 of the call stack, where no caller can override it and no test can see it.
 
-**Detect:** `os.environ` or `os.getenv` in a module that is not the declared composition root.
+**Detect:** `os.environ` or `os.getenv` in a module that is not the composition root. A
+module counts as the composition root when it is named for the job (`main.py`, `cli.py`,
+`__main__.py`, `settings.py`, `config.py`, a logging-config module) **or** carries an
+`if __name__ == "__main__"` guard: a module that is executable is an entry point whatever
+it is called.
 **Fix:** read it once into the frozen config; pass the config.
 
 ## 14. Mutable value object crossing a seam
@@ -193,3 +205,79 @@ failure callers must handle differently needs its own type even when the impleme
 identical.
 
 **Judge:** no signature. Reviewed against the callers that exist.
+
+## 19. `print` in a package module
+
+Output that cannot be routed, filtered, levelled or turned off, and that corrupts any stdout
+protocol the process participates in.
+
+**Detect:** a call to `print` in a module under the package root.
+**Fix:** `log = logging.getLogger(__name__)` and a level chosen from
+[logging/LEVELS.md](../logging/LEVELS.md). A CLI writing its actual output to stdout is the
+exception, and belongs in the composition root.
+
+## 20. Logging configured outside the composition root
+
+`basicConfig`, `setLevel`, `addHandler` or a formatter inside a library module takes a
+decision from the application that cannot be taken back, exactly like reading the
+environment below the root.
+
+**Detect:** `basicConfig`, `setLevel`, `addHandler`, `removeHandler` or `setFormatter` in a
+module that is not a declared composition root.
+**Fix:** emit through `getLogger(__name__)` and let the application configure. See
+[logging/SKILL.md](../logging/SKILL.md#libraries-log-applications-configure).
+
+## 21. Eager f-string formatting in a log call
+
+The message is built whether or not the level is enabled, and every line becomes a unique
+string, which destroys the grouping key aggregators use to collapse repeats into one event.
+
+**Detect:** an f-string, `.format()` call, or `%` expression as the first argument to a
+logger method.
+**Fix:** pass the format string and arguments separately: `log.info("loaded %s", name)`.
+
+## 22. Logger named by a string literal
+
+A hardcoded name decouples the logger from its module, so per-module level configuration
+stops working and two modules can silently share one logger.
+
+**Detect:** `getLogger("literal")` where the argument is not `__name__`.
+**Fix:** `getLogger(__name__)`. A deliberate logger tree root — `getLogger("lld")` in an
+application's own setup — belongs in the composition root.
+
+## 23. Exception logged without its traceback
+
+`log.error(str(exc))` discards the part that locates the fault, leaving the reader a message
+with no frame to look at.
+
+**Detect:** a `log.error` / `log.critical` call inside an `except` handler, with no
+`exc_info` keyword and not `log.exception`.
+**Fix:** `log.exception(...)` inside the handler, or `exc_info=True`.
+
+## 24. Exception caught, logged, and swallowed
+
+The caller is told the operation succeeded while the log says otherwise. The failure then
+surfaces later, somewhere unrelated, as missing data.
+
+**Detect:** an `except` handler whose body is only a logging call, with no `raise`, `return`
+or other recovery.
+**Judge:** legitimate at a top-level boundary that must not crash — a request handler, a
+worker loop — where continuing is the deliberate policy.
+**Fix:** recover explicitly and say so, or re-raise and let the caller decide.
+
+## 25. Log line with no subject
+
+A line naming an event but not what it happened to is unusable the one time it matters,
+because the reader cannot tell which request, device or file it refers to.
+
+**Judge:** no reliable signature. Reviewed against what an operator would grep for.
+
+## 26. Secret or payload in a log line
+
+Credentials, tokens, keys, personal data, or a whole request body that may contain them.
+Logs are copied to places the data was never cleared for, and are the hardest store to
+redact afterwards.
+
+**Judge:** a name-based signature (token, password, secret, key) catches the obvious cases
+and misses the ones that matter, so this is reviewed rather than detected. Log an
+identifier, never the payload.

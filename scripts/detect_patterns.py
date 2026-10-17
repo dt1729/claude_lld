@@ -45,8 +45,22 @@ OPEN_BASES: Final = frozenset({
     "BaseException", "NamedTuple", "TypedDict", "Generic", "object",
 })
 
-#: Modules permitted to read the environment: the composition root.
-COMPOSITION_ROOTS: Final = frozenset({"main.py", "cli.py", "__main__.py", "settings.py", "config.py"})
+#: Modules permitted to read the environment and configure logging: the composition root.
+#: A module carrying an ``if __name__ == "__main__"`` guard also qualifies, by shape.
+COMPOSITION_ROOTS: Final = frozenset({
+    "main.py", "cli.py", "__main__.py", "settings.py", "config.py",
+    # Modules whose job is logging configuration, same category as settings.py.
+    "logsetup.py", "logging_config.py", "log_config.py", "logconfig.py",
+})
+
+#: Logger methods, used to recognise a log call without resolving the logger object.
+LOG_METHODS: Final = frozenset({"debug", "info", "warning", "warn", "error", "critical", "exception", "log"})
+
+#: Configuration calls that belong to the application, never to a library module.
+LOGGING_CONFIG_CALLS: Final = frozenset({
+    "basicConfig", "setLevel", "addHandler", "removeHandler", "setFormatter", "dictConfig",
+    "fileConfig",
+})
 
 MUTATING_METHODS: Final = frozenset({
     "append", "extend", "insert", "remove", "pop", "clear", "update", "add",
@@ -75,7 +89,30 @@ class FileContext:
     is_composition_root: bool
 
 
-def build_context(path: Path, src_root: str) -> FileContext:
+def has_main_guard(tree: ast.Module) -> bool:
+    """Whether the module ends in ``if __name__ == "__main__":``.
+
+    A module that is executable *is* an entry point, whatever it is called. Recognising it
+    by shape rather than by filename means a script named for its job - detect_patterns.py,
+    not main.py - is still allowed to print and to configure logging.
+    """
+    for node in tree.body:
+        if not isinstance(node, ast.If) or not isinstance(node.test, ast.Compare):
+            continue
+        left = node.test.left
+        if (
+            isinstance(left, ast.Name)
+            and left.id == "__name__"
+            and any(
+                isinstance(c, ast.Constant) and c.value == "__main__"
+                for c in node.test.comparators
+            )
+        ):
+            return True
+    return False
+
+
+def build_context(path: Path, src_root: str, *, executable: bool = False) -> FileContext:
     """Classify a path: package-root module, private subfolder module, or composition root."""
     parts = path.as_posix().split("/")
     depth_below_src = len(parts) - parts.index(src_root) - 2 if src_root in parts else 1
@@ -83,7 +120,7 @@ def build_context(path: Path, src_root: str) -> FileContext:
         path=path,
         is_init=path.name == "__init__.py",
         is_root_module=depth_below_src <= 1,
-        is_composition_root=path.name in COMPOSITION_ROOTS,
+        is_composition_root=path.name in COMPOSITION_ROOTS or executable,
     )
 
 
@@ -137,6 +174,24 @@ def _call_name(call: ast.Call) -> str:
     if isinstance(call.func, ast.Attribute):
         return call.func.attr
     return ""
+
+
+def _is_log_call(call: ast.Call) -> bool:
+    """Whether this looks like a logger method call.
+
+    Shape-based: any attribute call whose method is a logger method and whose receiver is
+    named like a logger. Resolving the object would need cross-file analysis, and a
+    convention check that is right almost always beats an analysis that is right rarely.
+    """
+    if not isinstance(call.func, ast.Attribute) or call.func.attr not in LOG_METHODS:
+        return False
+    receiver = call.func.value
+    name = ""
+    if isinstance(receiver, ast.Name):
+        name = receiver.id
+    elif isinstance(receiver, ast.Attribute):
+        name = receiver.attr
+    return name.lower() in ("log", "logger", "logging", "_log", "_logger", "self")
 
 
 def _assigns_self(fn: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
@@ -418,6 +473,112 @@ def rule_13_env_below_root(tree: ast.Module, ctx: FileContext) -> list[Finding]:
     return found
 
 
+def rule_19_print_in_package(tree: ast.Module, ctx: FileContext) -> list[Finding]:
+    """print is output that cannot be routed, filtered, levelled or switched off."""
+    if ctx.is_composition_root:
+        return []
+    return [
+        Finding(19, "print", node.lineno, BLOCK,
+                "print in a package module: use logging.getLogger(__name__) and a level "
+                "chosen by who must act")
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "print"
+    ]
+
+
+def rule_20_logging_configured_below_root(tree: ast.Module, ctx: FileContext) -> list[Finding]:
+    """Configuration belongs to the application; a library only emits."""
+    if ctx.is_composition_root:
+        return []
+    return [
+        Finding(20, _call_name(node), node.lineno, BLOCK,
+                f"{_call_name(node)} outside the composition root: a library emits records "
+                "and lets the application decide where they go")
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and _call_name(node) in LOGGING_CONFIG_CALLS
+    ]
+
+
+def rule_21_eager_log_formatting(tree: ast.Module, ctx: FileContext) -> list[Finding]:
+    """Formatting eagerly costs work when disabled and destroys the aggregator grouping key."""
+    found: list[Finding] = []
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and _is_log_call(node) and node.args):
+            continue
+        first = node.args[0]
+        shape = ""
+        if isinstance(first, ast.JoinedStr):
+            shape = "f-string"
+        elif isinstance(first, ast.Call) and _call_name(first) == "format":
+            shape = ".format()"
+        elif isinstance(first, ast.BinOp) and isinstance(first.op, ast.Mod):
+            shape = "% formatting"
+        if shape:
+            found.append(Finding(
+                21, _call_name(node), node.lineno, BLOCK,
+                f"{shape} in a log call: pass the format string and arguments separately, "
+                'as log.info("loaded %s", name)',
+            ))
+    return found
+
+
+def rule_22_literal_logger_name(tree: ast.Module, ctx: FileContext) -> list[Finding]:
+    """A hardcoded name decouples the logger from its module and breaks per-module levels."""
+    if ctx.is_composition_root:
+        return []
+    return [
+        Finding(22, "getLogger", node.lineno, BLOCK,
+                "logger named by a string literal: use getLogger(__name__) so per-module "
+                "configuration reaches it")
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and _call_name(node) == "getLogger" and node.args
+        and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str)
+    ]
+
+
+def rule_23_24_exception_handlers(tree: ast.Module, ctx: FileContext) -> list[Finding]:
+    """Logging an exception without its traceback, and logging one instead of handling it."""
+    found: list[Finding] = []
+    for handler in (n for n in ast.walk(tree) if isinstance(n, ast.ExceptHandler)):
+        log_calls = [
+            n for n in ast.walk(handler)
+            if isinstance(n, ast.Call) and _is_log_call(n)
+        ]
+        if not log_calls:
+            continue
+
+        for call in log_calls:
+            method = _call_name(call)
+            carries_traceback = method == "exception" or any(
+                kw.arg == "exc_info" for kw in call.keywords
+            )
+            if method in ("error", "critical") and not carries_traceback:
+                found.append(Finding(
+                    23, method, call.lineno, BLOCK,
+                    "exception logged without its traceback: use log.exception(...) or "
+                    "exc_info=True inside an except block",
+                ))
+
+        body_without_logging = [
+            stmt for stmt in handler.body
+            if not (isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call)
+                    and _is_log_call(stmt.value))
+        ]
+        recovers = any(
+            isinstance(stmt, (ast.Raise, ast.Return, ast.Continue, ast.Break, ast.Assign, ast.AugAssign))
+            or isinstance(stmt, ast.Expr) and not isinstance(stmt.value, ast.Constant)
+            for stmt in body_without_logging
+        )
+        if not recovers:
+            found.append(Finding(
+                24, handler.name or "except", handler.lineno, JUDGE,
+                "exception caught, logged and swallowed: the caller is told it succeeded. "
+                "Recover explicitly or re-raise, unless this is a top-level boundary that "
+                "must not crash",
+            ))
+    return found
+
+
 def rule_14_mutable_value_object(tree: ast.Module, ctx: FileContext) -> list[Finding]:
     """A non-frozen dataclass on a public surface makes every holder a potential writer."""
     if not ctx.is_root_module:
@@ -475,6 +636,11 @@ RULES: Final = (
     rule_13_env_below_root,
     rule_14_mutable_value_object,
     rule_15_barrel_init,
+    rule_19_print_in_package,
+    rule_20_logging_configured_below_root,
+    rule_21_eager_log_formatting,
+    rule_22_literal_logger_name,
+    rule_23_24_exception_handlers,
 )
 
 
@@ -485,7 +651,7 @@ def detect(source: str, path: Path, src_root: str = "src") -> list[Finding]:
     write is a failure or simply not yet their concern.
     """
     tree = ast.parse(source)
-    ctx = build_context(path, src_root)
+    ctx = build_context(path, src_root, executable=has_main_guard(tree))
     findings = [f for rule in RULES for f in rule(tree, ctx)]
     findings = sorted(findings, key=lambda f: (f.line, f.rule))
     log.debug(

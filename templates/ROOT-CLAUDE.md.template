@@ -17,6 +17,7 @@
    `__init__.py` stays empty.
 3. **Every public behaviour has a test through the interface.** Not past it.
 4. **Construction happens at the entry point.** Modules accept dependencies, never build them.
+   Libraries emit log records; only the application configures logging.
 5. **Gates are not advisory.** `ruff`, `mypy --strict`, `import-linter` and `pytest` pass
    before a commit. Fix the code, not the config.
 
@@ -26,6 +27,7 @@ Design vocabulary and conventions ship in the `lld-seed` plugin and load on dema
 
 - `codebase-design` — interfaces, seams, depth, the deletion test
 - `python-style` — naming, readability, module boundaries, extension points
+- `logging` — levels chosen by who must act, what every line carries, what is never logged
 - `new-module` — scaffolds a contract, then the module, then its guidance
 - `/lld-seed:scaffold-guidance` — regenerates per-folder `CLAUDE.md` files
 

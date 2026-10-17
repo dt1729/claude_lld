@@ -49,6 +49,11 @@ FrameSource is the seam; VideoFile and RtspCamera both exist.
 | --- | --- | --- |
 | CalibrationMissingError | no calibration | prompt the operator |
 
+## Observability
+
+- **INFO** run.complete: run id, frame count, duration.
+- Never logged: the frame payload.
+
 ## Tests
 
 - yields one detection per frame above threshold
@@ -146,6 +151,32 @@ def test_junior_depth_is_refused_for_a_wide_module() -> None:
 def test_junior_depth_is_allowed_for_a_narrow_module() -> None:
     text = VALID.replace("**Depth:** senior", "**Depth:** junior")
     assert validate_contract(text, public_names=1) == []
+
+
+def test_missing_observability_section_is_reported() -> None:
+    text = VALID.replace(
+        "## Observability\n\n"
+        "- **INFO** run.complete: run id, frame count, duration.\n"
+        "- Never logged: the frame payload.\n\n",
+        "",
+    )
+    assert any("Observability" in e for e in validate_contract(text))
+
+
+def test_observability_naming_no_level_is_reported() -> None:
+    """A section that says something was considered, without saying what, is not an answer."""
+    text = VALID.replace("- **INFO** run.complete: run id, frame count, duration.",
+                         "- we log some things")
+    assert any("names no level" in e for e in validate_contract(text))
+
+
+def test_observability_accepts_the_explicit_none_sentence() -> None:
+    text = VALID.replace(
+        "- **INFO** run.complete: run id, frame count, duration.\n"
+        "- Never logged: the frame payload.",
+        "No logging.",
+    )
+    assert validate_contract(text) == []
 
 
 # --- waivers ----------------------------------------------------------------------------

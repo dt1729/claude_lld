@@ -14,6 +14,9 @@
 <!-- facts a caller or editor must preserve that types do not carry:
      ordering, lifecycle, units, thread-safety, resource ownership -->
 
+**Observability.** {{WHAT_THIS_PACKAGE_LOGS}}
+<!-- the events an operator greps for here, and anything that must never be logged -->
+
 **Rules that bite hardest here.** {{RELEVANT_RULE_POINTERS}}
 
 <!-- manual -->

@@ -36,8 +36,20 @@ one place. Fix once, fixed everywhere.
 position. Everything in a subfolder (`pkg/_internal/`, `pkg/lib/`) is private, regardless of
 underscore naming. Depth, not designation.
 
+**Log line** — an interface whose caller is the operator. It carries a contract (the level,
+the stable message prefix, the context fields) that somebody's alert or dashboard depends
+on, so changing it is a breaking change like any other.
+
+**Level** — a claim about who must act and how soon, not about how interesting an event is.
+ERROR means a human acts now; WARNING means a human acts later; INFO records a state change
+needed to reconstruct what happened; DEBUG serves a developer reproducing a fault.
+
+**Event** — the stable identity of a log line, carried by its format string. Variable parts
+belong in arguments, so an aggregator can collapse a million lines into one event and a count.
+
 **Contract** — the written output of design, produced before implementation. Records
-responsibility, interface, seam, allowed dependencies, error modes and the test list.
+responsibility, interface, seam, allowed dependencies, error modes, observability and the
+test list.
 See `skills/new-module/CONTRACT-FORMAT.md`.
 
 ## Rejected framings

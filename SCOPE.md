@@ -8,7 +8,8 @@ and tangled imports are symptoms. The missing design step is the cause.
 
 ## What this plugin does
 
-1. **Supplies a design vocabulary** so "make it modular" becomes a checkable instruction.
+1. **Supplies a design vocabulary** so "make it modular" becomes a checkable instruction,
+   covering logging as a first-class concern rather than an afterthought.
 2. **Gates implementation on a written contract** via a blocking `PreToolUse` hook.
 3. **Installs real enforcement** (ruff, mypy, import-linter, pytest, pre-commit) so the prose
    never repeats what a tool can check.
@@ -24,6 +25,8 @@ and tangled imports are symptoms. The missing design step is the cause.
 | Type correctness, exhaustiveness, optionality | mypy --strict |
 | Import direction, cycles, entry-point boundary | import-linter |
 | Test existence and coverage | pytest + hook |
+| `print` in a package, eager log formatting, swallowed exceptions | ruff + the gate |
+| Which level an event deserves, what a line must carry, what is never logged | **the markdown** |
 | Where a seam goes, what an abstraction is for, when to split | **the markdown** |
 
 A rule belongs in markdown only if no tool can decide it. Every rule a tool owns is listed

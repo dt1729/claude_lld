@@ -33,6 +33,10 @@ work:
   is a package entry point or more than one caller already exists.
 - **Deletion test** — what reappears in callers if this module vanishes. If the answer is
   "nothing", do not create it.
+- **Observability** — what this module logs, at which level, and what it must never log.
+  The operator is a caller and a log line is a promise, so it is designed here rather than
+  sprinkled in later. `No logging.` is a legitimate answer; silence by accident is not.
+  See [logging/LEVELS.md](../logging/SKILL.md).
 
 Choose constructs here, not while typing the implementation:
 [design-patterns](../design-patterns/SKILL.md) gives the verdict per perspective, and

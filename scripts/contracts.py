@@ -24,6 +24,7 @@ REQUIRED_SECTIONS: Final = (
     "Seam",
     "Dependencies",
     "Errors",
+    "Observability",
     "Tests",
     "Deletion test",
 )
@@ -123,6 +124,15 @@ def validate_contract(text: str, *, public_names: int = 0) -> list[str]:
     errors_section = sections.get("errors", "")
     if errors_section and "|" not in errors_section and "no error modes" not in errors_section.lower():
         errors.append("## Errors needs a table, or the sentence 'No error modes.'")
+
+    observability = sections.get("observability", "")
+    if observability and "no logging" not in observability.lower():
+        levels = ("debug", "info", "warning", "error")
+        if not any(level in observability.lower() for level in levels):
+            errors.append(
+                "## Observability names no level; say what is logged at INFO and what "
+                "raises it, or state 'No logging.'"
+            )
 
     tests = sections.get("tests", "")
     if tests:

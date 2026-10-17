@@ -57,6 +57,15 @@ exit, and every test needs a collector. Governed by the library-user perspective
 
 Invalid detections are dropped, not raised: a bad frame is expected, not exceptional.
 
+## Observability
+
+- **INFO** `run.complete` — one line per run: run id, frame count, detection count, duration.
+- **WARNING** when more than 10% of frames fail to decode in a run: names the device id.
+- **ERROR** never from this module; `CalibrationMissingError` reaches the caller, which
+  decides whether it is fatal.
+- Every line carries the device id, which is what an operator greps for.
+- Never logged: the frame payload, and the calibration file contents.
+
 ## Tests
 
 - yields one detection per frame above threshold, in order
@@ -81,12 +90,26 @@ Deleting this module pushes frame ordering, calibration caching and threshold fi
 | `Seam` | what varies, or an explicit statement that nothing does | empty |
 | `Dependencies` | a `May import` line | missing the line |
 | `Errors` | a table, or the sentence `No error modes.` | empty |
+| `Observability` | what is logged and at which level, or `No logging.` | names no level |
 | `Tests` | at least three bullets, at least one a failure case | fewer than three |
 | `Deletion test` | what reappears in callers | empty |
 
 `Status` is `draft`, `accepted` or `superseded`. `Depth` is `junior`, `senior` or
 `principal`, and the gate cross-checks it: a module with more than two public names cannot
 be `junior`.
+
+## Writing the Observability section
+
+Logging is part of the interface, not an afterthought: the operator is a caller, and a log
+line is a promise somebody's alert depends on. State what is emitted at INFO and the event
+name for each, what raises it to WARNING or ERROR, the context every line carries, and what
+must never be logged here.
+
+`No logging.` is a legitimate answer — a pure function usually has nothing to say. Making
+the claim explicit distinguishes "designed to be silent" from "nobody thought about it".
+
+Levels are chosen by who must act, not by how interesting the event is. See
+[logging/LEVELS.md](../logging/LEVELS.md).
 
 ## Writing the Interface section
 

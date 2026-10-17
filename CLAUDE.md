@@ -49,6 +49,9 @@ The vocabulary is not negotiable mid-sentence: use module, interface, depth, sea
 
 ## Logging
 
+The rules these scripts follow are the ones the plugin ships in `skills/logging/`. They apply
+to this repo too: it is the first place the guidance has to survive contact with real code.
+
 - Scripts log through the `lld` logger tree, configured once in each script's `main`.
   Never configure logging at import.
 - **Nothing writes to stdout.** The hook's stdout carries its JSON decision; logs go to

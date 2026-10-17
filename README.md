@@ -13,6 +13,7 @@ follow from that. This plugin supplies the missing step and refuses to let it be
 | Vocabulary | `GLOSSARY.md` — module, interface, depth, seam, adapter |
 | Design | `codebase-design` skill — deep modules, the deletion test, design it twice |
 | Conventions | `python-style` skill — four reference files of judgment-only rules |
+| Observability | `logging` skill — levels by who must act, library-versus-application split |
 | Gate | `PreToolUse` hook — no implementation in `src/` without a contract |
 | Enforcement | ruff, mypy `--strict`, import-linter, pytest, pre-commit |
 | Per-folder guidance | `/lld-seed:scaffold-guidance` — recursive, idempotent `CLAUDE.md` |
