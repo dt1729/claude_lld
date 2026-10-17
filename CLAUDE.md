@@ -36,6 +36,17 @@ The vocabulary is not negotiable mid-sentence: use module, interface, depth, sea
   trigger words in the `description`, because the description decides when the skill fires.
 - Run `claude plugin validate .` after touching any manifest.
 
+## Git
+
+- **Commit at every completed unit of work, without being asked.** A phase, a skill, a
+  reference file, a working script. Do not leave finished work uncommitted waiting for a
+  review that may not come for hours.
+- One logical change per commit. Adding a skill and fixing a cross-link are two commits.
+- Subject line says what changed; body says why, and names what was rejected when the
+  choice was contested.
+- Work on a branch, not `main`. Merging is the user's call.
+- Push only when asked.
+
 ## Target environment
 
 Claude Code 2.1.268, Python 3.12. Avoid manifest fields newer than 2.1.268, notably
