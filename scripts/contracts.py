@@ -1,0 +1,169 @@
+"""Contract location, structural validation, and the waiver ledger.
+
+Pure functions over text: nothing here touches the filesystem or the hook protocol, so the
+rules are testable without fixtures. The adapter in ``require_contract.py`` supplies the
+bytes and acts on the verdict.
+
+Structure is all that is validated. A contract that passes and says nothing is a failure of
+the author, which is why the required sections ask for specifics.
+"""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Final
+
+CONTRACT_DIR: Final = "docs/contracts"
+WAIVER_FILE: Final = "docs/contracts/_waivers.md"
+
+REQUIRED_SECTIONS: Final = (
+    "Responsibility",
+    "Interface",
+    "Seam",
+    "Dependencies",
+    "Errors",
+    "Tests",
+    "Deletion test",
+)
+
+VALID_STATUS: Final = frozenset({"draft", "accepted", "superseded"})
+VALID_DEPTH: Final = frozenset({"junior", "senior", "principal"})
+
+#: Placeholder text that means a section was templated and never filled.
+PLACEHOLDER: Final = re.compile(r"^(TODO|TBD|\.\.\.|<[^>]+>|\{\{[^}]+\}\})\s*$", re.MULTILINE)
+
+_HEADING: Final = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
+_WAIVER_ROW: Final = re.compile(
+    r"^\|\s*(?P<path>[^|]+?)\s*\|\s*(?P<rule>\d+)\s*\|\s*(?P<date>[^|]*?)\s*\|\s*(?P<reason>[^|]+?)\s*\|\s*$",
+    re.MULTILINE,
+)
+
+
+@dataclass(frozen=True, slots=True)
+class Waiver:
+    """One recorded judgment that an anti-pattern finding does not apply here."""
+
+    path: str
+    rule: int
+    date: str
+    reason: str
+
+
+def contract_path_for(module_path: Path, src_root: str = "src") -> Path:
+    """Map a module to its contract: src/detection/pipeline.py -> detection.pipeline.md.
+
+    A path outside ``src_root`` is mapped from its full dotted form, so the function is
+    total rather than raising on inputs the caller has already decided to check.
+    """
+    parts = list(module_path.with_suffix("").as_posix().split("/"))
+    if src_root in parts:
+        parts = parts[parts.index(src_root) + 1:]
+    return Path(CONTRACT_DIR) / f"{'.'.join(parts)}.md"
+
+
+def _sections(text: str) -> dict[str, str]:
+    """Split a contract into heading -> body. Headings are compared case-insensitively."""
+    matches = list(_HEADING.finditer(text))
+    out: dict[str, str] = {}
+    for i, match in enumerate(matches):
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        out[match.group(1).strip().lower()] = text[match.end():end].strip()
+    return out
+
+
+def _field(text: str, name: str) -> str | None:
+    match = re.search(rf"^\*\*{name}:\*\*\s*(\S+)", text, re.MULTILINE | re.IGNORECASE)
+    return match.group(1).strip().lower() if match else None
+
+
+def validate_contract(text: str, *, public_names: int = 0) -> list[str]:
+    """Return the reasons this contract is unusable. Empty means it validates.
+
+    ``public_names`` cross-checks the declared depth: a module with a wide public surface
+    cannot be declared junior, which is the loophole a self-assessed depth would otherwise
+    leave open.
+    """
+    errors: list[str] = []
+    sections = _sections(text)
+
+    for required in REQUIRED_SECTIONS:
+        body = sections.get(required.lower())
+        if body is None:
+            errors.append(f"missing section: ## {required}")
+        elif not body or PLACEHOLDER.search(body):
+            errors.append(f"section is empty or still a placeholder: ## {required}")
+
+    status = _field(text, "Status")
+    if status is None:
+        errors.append("missing **Status:** line")
+    elif status not in VALID_STATUS:
+        errors.append(f"Status must be one of {sorted(VALID_STATUS)}, got {status!r}")
+
+    depth = _field(text, "Depth")
+    if depth is None:
+        errors.append("missing **Depth:** line")
+    elif depth not in VALID_DEPTH:
+        errors.append(f"Depth must be one of {sorted(VALID_DEPTH)}, got {depth!r}")
+    elif depth == "junior" and public_names > 2:
+        errors.append(
+            f"Depth junior is not available to a module with {public_names} public names; "
+            "use senior or principal"
+        )
+
+    interface = sections.get("interface", "")
+    if interface and "```" not in interface:
+        errors.append("## Interface has no signature in a code block")
+
+    dependencies = sections.get("dependencies", "")
+    if dependencies and "may import" not in dependencies.lower():
+        errors.append("## Dependencies has no 'May import' line")
+
+    errors_section = sections.get("errors", "")
+    if errors_section and "|" not in errors_section and "no error modes" not in errors_section.lower():
+        errors.append("## Errors needs a table, or the sentence 'No error modes.'")
+
+    tests = sections.get("tests", "")
+    if tests:
+        bullets = [ln for ln in tests.splitlines() if ln.lstrip().startswith(("-", "*"))]
+        if len(bullets) < 3:
+            errors.append(f"## Tests lists {len(bullets)} behaviours; at least 3 are required")
+
+    return errors
+
+
+def parse_waivers(text: str) -> list[Waiver]:
+    """Read the waiver ledger. Rows that do not parse are ignored, not guessed at."""
+    waivers: list[Waiver] = []
+    for match in _WAIVER_ROW.finditer(text):
+        path = match.group("path")
+        if path.lower() in ("path", "---", ":---"):
+            continue
+        waivers.append(Waiver(
+            path=path,
+            rule=int(match.group("rule")),
+            date=match.group("date"),
+            reason=match.group("reason"),
+        ))
+    return waivers
+
+
+def is_waived(waivers: list[Waiver], module_path: Path, rule: int) -> bool:
+    """Whether a recorded judgment covers this finding."""
+    target = module_path.as_posix()
+    return any(w.rule == rule and w.path == target for w in waivers)
+
+
+def waiver_count(waivers: list[Waiver], module_path: Path) -> int:
+    """How many judgments this module has already accumulated.
+
+    Repeated waivers on one module are evidence the module, not the rule, is the problem.
+    """
+    target = module_path.as_posix()
+    return sum(1 for w in waivers if w.path == target)
+
+
+def waiver_row(module_path: Path, rule: int, date: str, reason: str) -> str:
+    """Render a ledger row, so the format has one definition rather than one per writer."""
+    return f"| {module_path.as_posix()} | {rule} | {date} | {reason} |"
