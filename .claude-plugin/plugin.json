@@ -1,0 +1,13 @@
+{
+  "name": "lld-seed",
+  "displayName": "LLD Seed",
+  "version": "0.1.0",
+  "description": "Forces low-level design before implementation in Python repos: deep-module vocabulary, a written contract gate, and recursive per-folder guidance.",
+  "author": {
+    "name": "Divya Tiwari",
+    "email": "divyatiwari1112@gmail.com"
+  },
+  "repository": "https://github.com/dt1729/claude_lld",
+  "license": "MIT",
+  "keywords": ["python", "architecture", "low-level-design", "deep-modules", "tdd"]
+}

@@ -1,0 +1,15 @@
+{
+  "name": "dt1729",
+  "description": "Divya Tiwari's Claude Code plugins for enforcing low-level design in Python codebases.",
+  "owner": {
+    "name": "Divya Tiwari",
+    "email": "divyatiwari1112@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "lld-seed",
+      "source": "./",
+      "description": "Forces low-level design before implementation in Python repos."
+    }
+  ]
+}
