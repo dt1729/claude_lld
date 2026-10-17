@@ -17,8 +17,10 @@ than silent, which is the point: a gate nobody can see being bypassed is worse t
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sys
+import time
 from datetime import date
 from pathlib import Path
 from typing import Any, Final
@@ -35,6 +37,9 @@ from contracts import (
     waiver_row,
 )
 from detect_patterns import BLOCK, JUDGE, detect
+from logsetup import configure, log_path
+
+log = logging.getLogger("lld.gate")
 
 WATCHED_TOOLS: Final = frozenset({"Write", "Edit", "MultiEdit"})
 
@@ -154,10 +159,12 @@ def _findings_message(module: Path, blocking: list[Any], judging: list[Any], wai
 
 def evaluate(payload: dict[str, Any], project_dir: Path, src_root: str = "src") -> dict[str, Any]:
     """Decide one tool call. Pure apart from reading the file, contract and ledger."""
+    started = time.perf_counter()
     tool = payload.get("tool_name", "")
     tool_input = payload.get("tool_input", {})
     raw_path = tool_input.get("file_path")
     if tool not in WATCHED_TOOLS or not isinstance(raw_path, str):
+        log.debug("allow: %s is not a watched write", tool or "<no tool>")
         return _allow()
 
     absolute = Path(raw_path)
@@ -166,38 +173,71 @@ def evaluate(payload: dict[str, Any], project_dir: Path, src_root: str = "src") 
     except ValueError:
         module = absolute
     if not in_scope(module, src_root):
+        log.info("allow %s %s: outside the gate's scope", tool, module.as_posix())
         return _allow()
 
     existed = absolute.exists()
     current = absolute.read_text(encoding="utf-8") if existed else ""
     source = resulting_source(tool, tool_input, current)
     if source is None:
+        log.info("allow %s %s: resulting content could not be determined", tool, module.as_posix())
         return _allow()
+
+    log.info("checking %s %s (%s)", tool, module.as_posix(), "existing" if existed else "new module")
 
     contract = project_dir / contract_path_for(module, src_root)
     contract_text = contract.read_text(encoding="utf-8") if contract.exists() else ""
-    errors = validate_contract(contract_text, public_names=count_public_names(source)) if contract_text else []
+    public_names = count_public_names(source)
+    errors = validate_contract(contract_text, public_names=public_names) if contract_text else []
+    log.debug(
+        "contract %s: %s, %d public names, %d validation errors",
+        contract_path_for(module, src_root).as_posix(),
+        "present" if contract_text else "absent", public_names, len(errors),
+    )
 
     if not existed and (not contract_text or errors):
+        log.info(
+            "deny %s: new module, contract %s (%.0f ms)",
+            module.as_posix(), "invalid" if errors else "missing",
+            (time.perf_counter() - started) * 1000,
+        )
         return _deny(_missing_contract_message(module, contract_path_for(module, src_root), errors))
 
     try:
         findings = detect(source, module, src_root)
-    except SyntaxError:
+    except SyntaxError as exc:
+        log.info("allow %s: content does not parse (%s)", module.as_posix(), exc.msg)
         return _allow()
 
     waiver_path = project_dir / WAIVER_FILE
     waivers = parse_waivers(waiver_path.read_text(encoding="utf-8")) if waiver_path.exists() else []
 
     blocking = [f for f in findings if f.verdict == BLOCK]
+    waived = [f for f in findings if f.verdict == JUDGE and is_waived(waivers, module, f.rule)]
     judging = [f for f in findings if f.verdict == JUDGE and not is_waived(waivers, module, f.rule)]
+    for finding in waived:
+        log.info("rule %02d on %s stands: a judgment is recorded", finding.rule, module.as_posix())
+
+    elapsed_ms = (time.perf_counter() - started) * 1000
     if not blocking and not judging:
+        log.info("allow %s: %d findings, all cleared (%.0f ms)", module.as_posix(), len(findings), elapsed_ms)
         return _allow()
+
+    log.info(
+        "deny %s: %d blocking, %d awaiting judgment - rules %s (%.0f ms)",
+        module.as_posix(), len(blocking), len(judging),
+        sorted({f.rule for f in (*blocking, *judging)}), elapsed_ms,
+    )
     return _deny(_findings_message(module, blocking, judging, waiver_count(waivers, module)))
 
 
 def main() -> int:
-    if os.environ.get("LLD_GATE", "").lower() == "off":
+    # Composition root: every environment read happens here and nowhere below it.
+    gate_off = os.environ.get("LLD_GATE", "").lower() == "off"
+    level = os.environ.get("LLD_LOG_LEVEL")
+    log_file_override = os.environ.get("LLD_LOG_FILE")
+
+    if gate_off:
         print(json.dumps(_allow()))
         return 0
     try:
@@ -207,11 +247,13 @@ def main() -> int:
         return 0
 
     project_dir = Path(payload.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or ".")
+    configure(level=level, log_file=log_path(project_dir, log_file_override))
+
     try:
         decision = evaluate(payload, project_dir)
     except OSError as exc:
         # A gate that crashes must not block the session; report and stand aside.
-        print(f"lld gate could not run: {exc}", file=sys.stderr)
+        log.warning("standing aside, the gate could not run: %s", exc)
         print(json.dumps(_allow()))
         return 0
     print(json.dumps(decision))

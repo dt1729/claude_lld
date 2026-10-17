@@ -15,10 +15,17 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import logging
 import re
 import sys
 from pathlib import Path
 from typing import Final
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from logsetup import configure
+
+log = logging.getLogger("lld.merge")
 
 MANUAL_OPEN: Final = "<!-- manual -->"
 MANUAL_CLOSE: Final = "<!-- /manual -->"
@@ -66,6 +73,11 @@ def merge_file(target: Path, generated: str) -> tuple[str, bool]:
     """Merge against ``target`` on disk. Returns the result and whether it differs."""
     existing = target.read_text(encoding="utf-8") if target.exists() else ""
     result = merge(generated, existing)
+    preserved = len(manual_blocks(existing))
+    log.info(
+        "%s: %s, %d manual block(s) preserved",
+        target.as_posix(), "changed" if result != existing else "unchanged", preserved,
+    )
     return result, result != existing
 
 
@@ -74,7 +86,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("target", type=Path, help="the CLAUDE.md to create or update")
     parser.add_argument("--generated", type=Path, required=True, help="freshly generated content")
     parser.add_argument("--stdout", action="store_true", help="print instead of writing")
+    parser.add_argument("--log-level", default=None, help="DEBUG, INFO, WARNING, ERROR")
     args = parser.parse_args(argv)
+
+    # --stdout makes stdout the data channel, so logs must not go there.
+    configure(level=args.log_level, log_file=None, stream=not args.stdout)
 
     try:
         generated = args.generated.read_text(encoding="utf-8")

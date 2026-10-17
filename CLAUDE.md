@@ -47,6 +47,17 @@ The vocabulary is not negotiable mid-sentence: use module, interface, depth, sea
 - Work on a branch, not `main`. Merging is the user's call.
 - Push only when asked.
 
+## Logging
+
+- Scripts log through the `lld` logger tree, configured once in each script's `main`.
+  Never configure logging at import.
+- **Nothing writes to stdout.** The hook's stdout carries its JSON decision; logs go to
+  stderr and to `.lld/gate.log`. There is a test that proves it, and it must stay passing.
+- `LLD_LOG_LEVEL` sets the level (default INFO), `LLD_LOG_FILE` redirects the file. Both are
+  read in `main`, never deeper, which is the rule the gate itself enforces on other code.
+- INFO records one line per decision with the rules that fired and the elapsed time. DEBUG
+  adds the inputs behind it. An unknown level degrades to INFO rather than failing.
+
 ## Target environment
 
 Claude Code 2.1.268, Python 3.12. Avoid manifest fields newer than 2.1.268, notably

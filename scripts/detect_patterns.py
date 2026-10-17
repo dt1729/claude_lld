@@ -17,11 +17,18 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import logging
 import sys
 from collections.abc import Iterator, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Final
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from logsetup import configure
+
+log = logging.getLogger("lld.detect")
 
 BLOCK: Final = "block"
 JUDGE: Final = "judge"
@@ -480,7 +487,12 @@ def detect(source: str, path: Path, src_root: str = "src") -> list[Finding]:
     tree = ast.parse(source)
     ctx = build_context(path, src_root)
     findings = [f for rule in RULES for f in rule(tree, ctx)]
-    return sorted(findings, key=lambda f: (f.line, f.rule))
+    findings = sorted(findings, key=lambda f: (f.line, f.rule))
+    log.debug(
+        "%s: %d findings across %d rules (root module: %s)",
+        path.as_posix(), len(findings), len({f.rule for f in findings}), ctx.is_root_module,
+    )
+    return findings
 
 
 def format_report(findings: Sequence[Finding]) -> str:
@@ -502,7 +514,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("path", type=Path)
     parser.add_argument("--json", action="store_true", help="emit findings as JSON")
     parser.add_argument("--src-root", default="src", help="directory name that roots packages")
+    parser.add_argument("--log-level", default=None, help="DEBUG, INFO, WARNING, ERROR")
     args = parser.parse_args(argv)
+
+    configure(level=args.log_level, log_file=None)
 
     try:
         source = args.path.read_text(encoding="utf-8")
