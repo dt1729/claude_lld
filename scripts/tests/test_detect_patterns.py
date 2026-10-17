@@ -405,3 +405,49 @@ def wrap(x: int) -> int:
 def test_unparseable_source_raises_syntaxerror() -> None:
     with pytest.raises(SyntaxError):
         detect("def broken(:\n", ROOT_MODULE)
+
+
+# --- 4: exception hierarchies are the correct use of inheritance ------------------------
+
+
+def test_exception_subclass_of_a_local_base_is_clean() -> None:
+    """FORMAT.md requires per-condition error types deriving from a package base."""
+    src = """
+class LedgerError(Exception):
+    pass
+
+class EmptyLedgerError(LedgerError):
+    pass
+
+class CurrencyMismatchError(LedgerError):
+    pass
+"""
+    assert 4 not in rules(src)
+
+
+def test_deep_exception_hierarchy_does_not_trip_the_depth_rule() -> None:
+    """Nesting is how a caller chooses the granularity it catches at."""
+    src = """
+class AppError(Exception):
+    pass
+
+class StorageError(AppError):
+    pass
+
+class DiskFullError(StorageError):
+    pass
+"""
+    assert 5 not in rules(src)
+
+
+def test_a_non_exception_concrete_base_still_blocks() -> None:
+    """The exemption is for exception trees, not for inheritance generally."""
+    src = """
+class Reader:
+    def read(self) -> int:
+        return 1
+
+class CachedReader(Reader):
+    pass
+"""
+    assert 4 in rules(src)

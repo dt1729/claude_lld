@@ -448,11 +448,37 @@ def rule_03_import_time_side_effects(tree: ast.Module, _ctx: FileContext) -> lis
     return found
 
 
+def _local_exception_types(local: dict[str, ast.ClassDef]) -> set[str]:
+    """Classes in this file that transitively derive from Exception.
+
+    An exception hierarchy is the one case where inheriting from a concrete class of your
+    own is correct: it is how a caller chooses the granularity it catches at, and FORMAT.md
+    requires it. Resolving only the immediate base missed this and blocked the very shape
+    the guidance prescribes.
+    """
+    exceptions = {
+        name
+        for name, cls in local.items()
+        if set(_base_names(cls)) & {"Exception", "BaseException"}
+    }
+    changed = True
+    while changed:
+        changed = False
+        for name, cls in local.items():
+            if name not in exceptions and set(_base_names(cls)) & exceptions:
+                exceptions.add(name)
+                changed = True
+    return exceptions
+
+
 def rule_04_05_inheritance(tree: ast.Module, _ctx: FileContext) -> list[Finding]:
     """Inheriting from your own concrete class, and chains deeper than one level."""
     local: dict[str, ast.ClassDef] = {c.name: c for c in _classes(tree)}
+    exception_types = _local_exception_types(local)
     found: list[Finding] = []
     for cls in _classes(tree):
+        if cls.name in exception_types:
+            continue  # an exception tree is a correct use of inheritance, at any depth
         for base_name in _base_names(cls):
             base = local.get(base_name)
             if base is None:

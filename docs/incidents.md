@@ -88,3 +88,43 @@ the gate watches and the tools it knows how to apply cannot drift apart.
 *after* the rule existed, by an author who had read it. Guidance alone did not prevent it;
 the detector did. That is the argument for mechanical enforcement, observed rather than
 asserted.
+
+---
+
+## 004 — The detector blocked the shape the guidance prescribes
+
+**Date:** 2026-10-17
+**Found by:** building a sample feature end to end with the gate in the loop (phase 4d)
+
+**What happened.** A module defining a normal exception hierarchy was blocked:
+
+```python
+class LedgerError(Exception): ...
+
+
+class EmptyLedgerError(LedgerError): ...  # rule 04: BLOCK
+
+
+class CurrencyMismatchError(LedgerError): ...  # rule 04: BLOCK
+```
+
+`FORMAT.md` requires exactly this — *"Name every error type for its condition"*, with the
+worked example `class CalibrationMissingError(DetectionError)`. So one half of the plugin
+instructed a shape the other half refused, and the refusal was unwaivable because rule 04
+is `block` tier.
+
+**Root cause.** Rule 04 resolved only the *immediate* base. `OPEN_BASES` contains
+`Exception`, but `LedgerError`'s subclasses name `LedgerError`, not `Exception`, so the
+exemption never applied past the first level.
+
+**What changed.** `_local_exception_types` computes the transitive closure of classes
+deriving from `Exception`, and rule 04 and rule 05 both skip them. An exception tree is the
+one case where inheriting from a concrete class of your own is correct — it is the mechanism
+by which a caller chooses the granularity it catches at — and depth in such a tree is a
+feature, not a smell. Three regression tests pin it, including one proving a non-exception
+concrete base still blocks.
+
+**Why this one matters most.** The other incidents were a detector being noisy. This was the
+system contradicting itself, and it was unwaivable, so following the guidance made the gate
+unusable. No amount of review would have found it: it took writing one real module. Everything
+in this plugin written without that loop should be assumed to contain more of these.
