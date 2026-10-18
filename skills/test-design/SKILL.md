@@ -8,10 +8,23 @@ description: Write tests that can fail for one reason - choosing what to assert,
 A test is an experiment with one hypothesis. It earns its place by being **able to fail**,
 failing for **one reason**, and naming that reason when it does.
 
-The mechanical half is enforced: entries 27 to 36 of
+**Which tests must exist is not a judgment call.** Every public name, every `raise`, and
+every guard that produces one is a fact in the module's syntax tree, and
+`scaffold_tests.py` reads them off it. Run that before writing tests - a list made by
+reading the file is a plausible list that misses the branch added last week:
+
+```
+python "${CLAUDE_PLUGIN_ROOT}/scripts/scaffold_tests.py" <module> --write
+python "${CLAUDE_PLUGIN_ROOT}/scripts/detect_gaps.py" <module>     # what is still owed
+```
+
+The AST supplies the obligations and a failing stub for each. It generates no assertions,
+because a generated `assert result is not None` is a shallow test with a passing grade.
+**What to assert is the judgment, and that is what follows.**
+
+The mechanical half is also enforced: entries 27 to 36 of
 [design-patterns/ANTI-PATTERNS.md](../design-patterns/ANTI-PATTERNS.md) are decided by
-`detect_tests.py`, and the gate refuses a test that asserts nothing. What follows is the
-half no detector decides.
+`detect_tests.py`, and the gate refuses a test that asserts nothing.
 
 ## Watch it fail first
 
@@ -127,6 +140,9 @@ Wait on the condition, or inject the clock so the test controls time rather than
 
 ## Completion criteria
 
+- [ ] `scaffold_tests.py --list` was run, and every obligation it names has a test
+- [ ] `detect_gaps.py` reports nothing blocking
+- [ ] The sandbox was run, and its output holds no surprises
 - [ ] Every behaviour in the contract's Tests section has a test
 - [ ] At least one failure case and one boundary
 - [ ] You watched each test fail, and know the message it gave

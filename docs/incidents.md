@@ -162,3 +162,31 @@ repositories rather than from a specification.
 
 **Worth noting:** the rules were caught by a test that applies them to the suite that defines
 them. That test is cheap, and every future tier should ship with one.
+
+---
+
+## 006 — The plugin told people to write tests from prose while holding an AST
+
+**Date:** 2026-10-18
+**Found by:** the user asking, three times, whether the AST generated the tests
+
+**What happened.** `new-module` step 3 said "the contract's Tests section is a list of
+behaviours; turn each into a test". That list is written by hand, so it records what the
+author remembered, and it goes stale the moment a branch is added. Meanwhile the plugin
+already parsed every module it governed - and used that only to check work after the fact.
+Rule 35, the one rule that would have read obligations off the source, was prose with no
+implementation and a note excusing it: "needs the module-to-test mapping, which the detector
+does not build."
+
+**What changed.** `obligations.py` reads obligations off the syntax tree: every public name,
+every raise, and the guard that produces one. `scaffold_tests.py` turns them into failing
+stubs and a sandbox script. `detect_gaps.py` implements rule 35 against them. The skills now
+instruct the session to run the tool rather than read the file, and say why.
+
+**What it does not do.** Generate assertions. A generated `assert result is not None` passes
+the gate, raises the count and proves nothing - the exact shallow test this plugin exists to
+prevent. The AST supplies the obligation; a reader supplies the judgment.
+
+**Caught on the way in, by this repo's own gates:** rule 27 fired on two tests of the new
+scaffolder that called `ast.parse` and asserted nothing, and mypy caught a bytes constant
+that would have written `b'...'` into a generated test name.

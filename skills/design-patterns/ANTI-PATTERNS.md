@@ -44,7 +44,7 @@ mechanically and handed to the model with the evidence, because the shape alone 
 | 31 | Test importing past the entry-point boundary | AST |
 | 32 | More mocks than assertions | AST->judge |
 | 33 | Asserting that a call happened, not that behaviour is right | AST->judge |
-| 35 | Public name with no test referencing it | judge |
+| 35 | Obligation from the source with nothing in the suite covering it | AST |
 | 36 | Test name joining two things with "and" | AST->judge |
 
 Rules 27 to 36 are decided by `scripts/detect_tests.py`, which reads the test files the
@@ -358,10 +358,20 @@ implementation stops working, and fails after a harmless refactor.
 **Judge:** legitimate when the call *is* the behaviour, such as an audit log.
 **Fix:** assert the result, or the observable effect on a fake.
 
-## 35. Public name with no test referencing it
+## 35. Obligation from the source with nothing in the suite covering it
 
-**Judge:** needs the module-to-test mapping, which the detector does not build. Reviewed
-against the contract's Tests section, which lists the behaviours that should exist.
+Every public name, every `raise`, and every guard producing one is a fact in the module's
+syntax tree. `obligations.py` reads them off it; `detect_gaps.py` checks the suite against
+them. A list of tests made by reading the file is a plausible list that misses the branch
+added last week.
+
+**Detect:** an obligation the suite does not meet - a public name no test mentions, or an
+exception no `pytest.raises` expects. Reads the module and its suite together, which is why
+this rule lives in its own detector.
+**Judge:** boundaries. The AST sees the threshold a guard turns on but not which value a
+test passed, so it reports the boundary and leaves the check to a reader.
+**Fix:** `scaffold_tests.py <module> --write` writes a failing stub for each, and the
+sandbox beside it shows what the module actually does with values either side of the guard.
 
 ## 36. Test name joining two things with "and"
 

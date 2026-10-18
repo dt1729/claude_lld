@@ -42,19 +42,44 @@ Choose constructs here, not while typing the implementation:
 [design-patterns](../design-patterns/SKILL.md) gives the verdict per perspective, and
 [ANTI-PATTERNS.md](../design-patterns/ANTI-PATTERNS.md) lists what the gate will reject.
 
-## 3. Write the test list, then the tests
+## 3. Derive the tests from the AST, then write them
 
-The contract's Tests section is a list of behaviours **through the interface**. Turn each
-into a test before the implementation exists. They fail; that is the point — a test that has
-never failed has not been shown to test anything.
+The contract's Tests section says what you *intended*. The source says what is *true*. Use
+both, in that order, and never let the first stand in for the second.
 
-Include at least one failure case and one boundary. A test list of only happy paths is the
-shallow-test failure mode, and it is visible at this step rather than three weeks later.
+**Run the tool. Do not substitute your reading of the file.**
+
+```
+python "${CLAUDE_PLUGIN_ROOT}/scripts/scaffold_tests.py" <module> --list   # obligations
+python "${CLAUDE_PLUGIN_ROOT}/scripts/scaffold_tests.py" <module> --write  # stubs + sandbox
+```
+
+Every public name, every `raise`, and every guard that produces one is an obligation read
+off the syntax tree. Listing what looks important instead produces a plausible set that
+misses the branch added last week; the AST does not miss it and gives the same answer twice.
+
+This writes two files and never overwrites an existing one:
+
+- `tests/test_<module>.py` — one stub per obligation, each failing with `pytest.fail` and
+  carrying the fact that demands it. Red by construction: a stub cannot pass unwritten.
+- `tests/sandbox_<module>.py` — imports the module in a fresh process under a temporary
+  directory and builds each public type with values either side of its guards. **Run it
+  before writing any assertion.** It shows what the module does alone, which no test in a
+  warm process can: import-time work, a constructor that writes a file, what each call
+  actually returns or raises.
+
+Then replace each stub's failure with an assertion a plausible bug would break, and rename
+it for the behaviour it covers. That judgment is yours; the tool has none, which is why it
+generates no assertions. See [test-design](../test-design/SKILL.md).
+
+Finally, confirm nothing is still owed:
+
+```
+python "${CLAUDE_PLUGIN_ROOT}/scripts/detect_gaps.py" <module>
+```
 
 Tests live in `<package>/tests/test_<module>.py` and import the module through its public
-path, never by reaching into a subfolder. What makes an assertion load-bearing, and when a
-fake beats a mock, is in [test-design](../test-design/SKILL.md); the gate refuses a test
-that asserts nothing.
+path, never by reaching into a subfolder. The gate refuses a test that asserts nothing.
 
 ## 4. Implement
 
