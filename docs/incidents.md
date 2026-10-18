@@ -222,3 +222,50 @@ asserts that drift is denied.
 the complexity limit of 10 and were split; mypy caught a type-narrowing loss when a SIM102
 fix hoisted an `isinstance` into a boolean - the same mistake made earlier in
 `detect_patterns.py`, which is a sign it deserves a rule of its own.
+
+---
+
+## 008 — An external audit found contract drift in every dimension it looked at
+
+**Date:** 2026-10-18
+**Found by:** a separate Claude Code session running a six-dimension audit of **pixibot**
+against lld-seed, with a refutation pass over each finding
+(`wf_6c1d47d2-fb7`, 18 agents)
+
+**What happened.** pixibot had taken an lld-seed pass: 22 contracts, an incident log, the
+vocabulary. Six agents audited it on depth, boundaries, contract drift, logging, style and
+tests. Every dimension returned "mixed", and the same defect appeared in all six:
+
+- **contract drift**: drift "clusters on the three features that landed after the lld-seed
+  pass... each landed with its own contract updated and the contracts of its *callers* left
+  alone"
+- **depth**: "a thin layer of seams and names that the code no longer uses but the contracts
+  still claim it does"
+- **tests**: "two contracts list Tests sections describing tests that do not exist"
+- **boundary**: "10 contracts have a wrong 'Imported by' line, and 5 of those assert an edge
+  another contract explicitly forbids"
+- **logging**: the one clean result - 15 of 22 contracts answer "No logging." and the code
+  honours all 15
+
+Two findings were verified line by line by a refutation agent and survived: a `Toolset`
+injection point with zero construction sites anywhere, whose contract names two
+justifications that are both false in the code; and an adoption-D code path reached on every
+build whose true branch no test ever takes, against a contract listing nine tests that do
+not exist.
+
+**What this says about rule 37.** It is the right rule and it is half-built. Rule 37 compares
+the Interface section to the module and nothing else, so of the drift found here it would
+have caught the dead `Toolset` and missed the wrong `Imported by` lines, the forbidden edges,
+and the Tests sections describing absent tests. The boundary audit names the gap precisely:
+pixibot's own `check_contracts.py` "checks only that a 'May import' line *exists* and never
+compares either direction to the real graph it could compute in 40 lines" - which is exactly
+what `validate_contract` did here until two commits ago, and still does for every section
+except Interface.
+
+**The second lesson is about blast radius.** Drift landed in the contracts of *callers*,
+modules nobody edited. A gate that checks the file being written cannot see that; it needs a
+repo-wide sweep. The per-file check and the sweep answer different questions.
+
+**Caveat on provenance.** These are agents' findings about someone else's code, read here
+from the run transcripts rather than re-derived. The two quoted above carry line-level
+verification from the refutation pass; the rest are summaries and should be treated as leads.
