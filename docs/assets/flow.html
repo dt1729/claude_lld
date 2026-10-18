@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>lld-seed flow</title>
+<style>
+  /* Ink / Paper, from dt1729.github.io (_sass/_variables.scss). */
+  :root {
+    --bg: #151515; --fg: #e6e6e6; --muted: #9a9a9a; --rule: #2a2a2a;
+    --rule-hard: #3d3d3d; --surface: #1c1c1c; --accent: #82adea;
+    --allow: #7fb069; --deny: #d1595c; --amber: #d8a657;
+    --sans: "Segoe UI", -apple-system, Roboto, Helvetica, Arial, sans-serif;
+    --mono: Consolas, ui-monospace, SFMono-Regular, Menlo, monospace;
+    --serif: Charter, "Bitstream Charter", Georgia, serif;
+  }
+  :root[data-theme="light"] {
+    --bg: #fbfaf8; --fg: #14171c; --muted: #5a6472; --rule: #dfe1e6;
+    --rule-hard: #c4c8cf; --surface: #f1efeb; --accent: #1a5fb4;
+    --allow: #3f7d20; --deny: #b3282b; --amber: #8a6400;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    width: 1280px; height: 720px; background: var(--bg); color: var(--fg);
+    font-family: var(--sans); display: flex; flex-direction: column;
+    padding: 34px 44px 26px;
+  }
+  header { display: flex; align-items: baseline; gap: 14px; border-bottom: 1px solid var(--rule);
+           padding-bottom: 14px; }
+  .mark { font-family: var(--mono); font-size: 19px; }
+  .claim { font-family: var(--serif); font-size: 19px; color: var(--muted); }
+  .step { margin-left: auto; font-family: var(--mono); font-size: 14px; color: var(--muted); }
+
+  figure { margin: 0; flex: 1; display: flex; flex-direction: column; justify-content: center; }
+  svg { width: 100%; height: auto; }
+  figcaption { font-family: var(--serif); font-size: 19px; color: var(--muted);
+               text-align: center; padding-top: 6px; min-height: 30px; }
+  figcaption b { color: var(--fg); font-weight: 600; }
+
+  /* node states */
+  .box { fill: var(--surface); stroke: var(--rule-hard); stroke-width: 1.5; }
+  .box.active { stroke: var(--accent); stroke-width: 2.5; }
+  .box.pass   { stroke: var(--allow); stroke-width: 2.5; }
+  .box.block  { stroke: var(--deny); stroke-width: 2.5; }
+  .box.idle   { opacity: .45; }
+
+  .label { fill: var(--fg); font-family: var(--mono); font-size: 15px; text-anchor: middle; }
+  .sub   { fill: var(--muted); font-family: var(--mono); font-size: 12px; text-anchor: middle; }
+  .dim .label, .dim .sub { opacity: .45; }
+
+  .edge { stroke: var(--rule-hard); stroke-width: 1.6; fill: none; }
+  .edge.on    { stroke: var(--accent); stroke-width: 2.6; }
+  .edge.good  { stroke: var(--allow); stroke-width: 2.6; }
+  .edge.bad   { stroke: var(--deny); stroke-width: 2.6; stroke-dasharray: 7 5; }
+  .edge.off   { opacity: .3; }
+
+  .elabel { font-family: var(--mono); font-size: 12px; fill: var(--muted); text-anchor: middle; }
+  .elabel.on   { fill: var(--accent); }
+  .elabel.good { fill: var(--allow); }
+  .elabel.bad  { fill: var(--deny); }
+  .elabel.off  { opacity: .3; }
+
+  .band { fill: var(--muted); font-family: var(--mono); font-size: 11px;
+          letter-spacing: .09em; text-anchor: end; }
+</style>
+</head>
+<body>
+  <header>
+    <span class="mark">lld-seed</span>
+    <span class="claim">Nothing reaches disk until the design, the tests and the checks agree.</span>
+    <span class="step" id="step"></span>
+  </header>
+
+  <figure>
+    <svg viewBox="0 0 1180 545" role="img"
+         aria-label="A write travels left to right through a gate to disk, the checks and a commit.
+                     Every refusal arcs back to the author. The gate consults the contract, the
+                     obligations read from the source, and the rule set; a judged finding becomes a
+                     recorded incident that edits the rules.">
+      <defs>
+        <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7"
+                orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+
+      <text class="band" x="132" y="130">REFUSALS</text>
+      <text class="band" x="132" y="292">THE WRITE</text>
+      <text class="band" x="132" y="444">CONSULTS</text>
+
+      <!-- ===== refusals: every one arcs back to the author ===== -->
+      <g id="e-deny1"><path class="edge" d="M400,250 C400,198 310,192 252,244" marker-end="url(#a)"/>
+        <text class="elabel" x="318" y="200">no contract</text></g>
+      <g id="e-deny2"><path class="edge" d="M470,250 C470,134 340,126 226,244" marker-end="url(#a)"/>
+        <text class="elabel" x="358" y="116">anti-pattern · contract drift</text></g>
+      <g id="e-deny3"><path class="edge" d="M861,250 C861,70 430,46 200,244" marker-end="url(#a)"/>
+        <text class="elabel" x="545" y="46">a check failed</text></g>
+
+      <!-- ===== the write ===== -->
+      <g id="n-agent"><rect class="box" x="150" y="250" width="150" height="72" rx="5"/>
+        <text class="label" x="225" y="282">agent</text>
+        <text class="sub"   x="225" y="302">writes a module</text></g>
+
+      <g id="n-gate"><rect class="box" x="362" y="250" width="150" height="72" rx="5"/>
+        <text class="label" x="437" y="282">gate</text>
+        <text class="sub"   x="437" y="302">PreToolUse hook</text></g>
+
+      <g id="n-disk"><rect class="box" x="574" y="250" width="150" height="72" rx="5"/>
+        <text class="label" x="649" y="282">disk</text>
+        <text class="sub"   x="649" y="302">the file exists</text></g>
+
+      <g id="n-checks"><rect class="box" x="786" y="250" width="150" height="72" rx="5"/>
+        <text class="label" x="861" y="282">checks</text>
+        <text class="sub"   x="861" y="302">ruff · mypy · pytest</text></g>
+
+      <g id="n-commit"><rect class="box" x="998" y="250" width="150" height="72" rx="5"/>
+        <text class="label" x="1073" y="282">commit</text>
+        <text class="sub"   x="1073" y="302">pre-commit</text></g>
+
+      <g id="e-write"><path class="edge" d="M300,286 L354,286" marker-end="url(#a)"/>
+        <text class="elabel" x="327" y="276">Write</text></g>
+      <g id="e-allow"><path class="edge" d="M512,286 L566,286" marker-end="url(#a)"/>
+        <text class="elabel" x="539" y="276">allowed</text></g>
+      <g id="e-run"><path class="edge" d="M724,286 L778,286" marker-end="url(#a)"/>
+        <text class="elabel" x="751" y="276">run</text></g>
+      <g id="e-green"><path class="edge" d="M936,286 L990,286" marker-end="url(#a)"/>
+        <text class="elabel" x="963" y="276">green</text></g>
+
+      <!-- ===== what the gate consults ===== -->
+      <g id="n-contract"><rect class="box" x="300" y="410" width="150" height="58" rx="5"/>
+        <text class="label" x="375" y="436">contract</text>
+        <text class="sub"   x="375" y="455">8 sections</text></g>
+
+      <g id="n-ast"><rect class="box" x="480" y="410" width="170" height="58" rx="5"/>
+        <text class="label" x="565" y="436">obligations</text>
+        <text class="sub"   x="565" y="455">read off your AST</text></g>
+
+      <g id="n-rules"><rect class="box" x="690" y="410" width="150" height="58" rx="5"/>
+        <text class="label" x="765" y="436">37 rules</text>
+        <text class="sub"   x="765" y="455">block · judge</text></g>
+
+      <g id="n-ledger"><rect class="box" x="890" y="410" width="170" height="58" rx="5"/>
+        <text class="label" x="975" y="436">incidents</text>
+        <text class="sub"   x="975" y="455">what was wrong</text></g>
+
+      <g id="e-c2g"><path class="edge" d="M375,410 L392,330" marker-end="url(#a)"/></g>
+      <g id="e-a2g"><path class="edge" d="M565,410 L440,330" marker-end="url(#a)"/></g>
+      <g id="e-r2g"><path class="edge" d="M765,410 L488,330" marker-end="url(#a)"/></g>
+
+      <!-- the learning loop, routed below so it crosses nothing -->
+      <g id="e-j2l"><path class="edge" d="M840,439 L882,439" marker-end="url(#a)"/>
+        <text class="elabel" x="861" y="429">judged</text></g>
+      <g id="e-l2r"><path class="edge" d="M975,468 C975,520 765,520 765,476" marker-end="url(#a)"/>
+        <text class="elabel" x="870" y="534">a recorded incident edits the rules</text></g>
+    <figcaption id="caption"></figcaption>
+  </figure>
+
+<!--DATA-->
+<script>
+(function () {
+  var s = window.SCENE || {};
+  if (s.theme === "light") document.documentElement.setAttribute("data-theme", "light");
+  document.getElementById("step").textContent = s.step || "";
+  document.getElementById("caption").innerHTML = s.caption || "";
+
+  var nodes = s.nodes || {};
+  ["agent","gate","disk","checks","commit","contract","ast","rules","ledger"].forEach(function (id) {
+    var g = document.getElementById("n-" + id);
+    var state = nodes[id] || "idle";
+    g.querySelector("rect").setAttribute("class", "box " + state);
+    g.setAttribute("class", state === "idle" ? "dim" : "");
+  });
+
+  var edges = s.edges || {};
+  ["write","allow","run","green","deny1","deny2","deny3","c2g","a2g","r2g","j2l","l2r"]
+    .forEach(function (id) {
+      var g = document.getElementById("e-" + id);
+      var state = edges[id] || "off";
+      g.querySelector("path").setAttribute("class", "edge " + state);
+      var t = g.querySelector("text");
+      if (t) t.setAttribute("class", "elabel " + state);
+    });
+})();
+</script>
+</body>
+</html>

@@ -47,6 +47,14 @@ follow from that. This plugin supplies the missing step and refuses to let it be
 
 ## How it works
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/flow.gif">
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/flow-light.gif">
+    <img src="docs/assets/flow.gif" alt="A write travels through the gate to disk, the checks and a commit; every refusal arcs back to the author, and a judged finding becomes a recorded incident that edits the rules" width="100%">
+  </picture>
+</p>
+
 | Layer | Mechanism |
 | --- | --- |
 | Vocabulary | `GLOSSARY.md` — module, interface, depth, seam, adapter |
