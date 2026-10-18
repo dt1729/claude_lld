@@ -30,6 +30,7 @@ from typing import Any, Final
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import detect_tests
+from conformance import conformance
 from contracts import (
     WAIVER_FILE,
     contract_path_for,
@@ -40,7 +41,7 @@ from contracts import (
     waiver_row,
 )
 from detect_patterns import detect
-from findings import BLOCK, JUDGE
+from findings import BLOCK, JUDGE, Finding
 from logsetup import configure, log_path
 
 log = logging.getLogger("lld.gate")
@@ -219,6 +220,14 @@ def _evaluate_test(
     return _deny("\n".join(lines))
 
 
+def _all_findings(source: str, module: Path, src_root: str, contract_text: str) -> list[Finding]:
+    """Structure plus contract conformance. The contract is a promise; rule 37 checks it."""
+    findings = detect(source, module, src_root)
+    if contract_text:
+        findings += conformance(contract_text, source)
+    return findings
+
+
 def evaluate(payload: dict[str, Any], project_dir: Path, src_root: str = "src") -> dict[str, Any]:
     """Decide one tool call. Pure apart from reading the file, contract and ledger."""
     started = time.perf_counter()
@@ -275,7 +284,7 @@ def evaluate(payload: dict[str, Any], project_dir: Path, src_root: str = "src") 
         return _deny(_missing_contract_message(module, contract_path_for(module, src_root), errors))
 
     try:
-        findings = detect(source, module, src_root)
+        findings = _all_findings(source, module, src_root, contract_text)
     except SyntaxError as exc:
         log.info("allow %s: content does not parse (%s)", module.as_posix(), exc.msg)
         return _allow()

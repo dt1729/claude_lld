@@ -46,6 +46,7 @@ mechanically and handed to the model with the evidence, because the shape alone 
 | 33 | Asserting that a call happened, not that behaviour is right | AST->judge |
 | 35 | Obligation from the source with nothing in the suite covering it | AST |
 | 36 | Test name joining two things with "and" | AST->judge |
+| 37 | Contract and module disagree about the interface | AST |
 
 Rules 27 to 36 are decided by `scripts/detect_tests.py`, which reads the test files the
 structure detector excludes. Rule 34 (one test covering several behaviours) was specified,
@@ -383,3 +384,26 @@ broke.
 `test_class_with_init_and_one_method`. The detector cannot tell those apart, which is why
 this is not a block.
 **Fix:** split it, so the name of a failure is the behaviour that broke.
+
+## 37. Contract and module disagree about the interface
+
+A contract's Interface block is a schema: the declaration a caller is entitled to rely on.
+Until this rule existed, the plugin checked only that the block was present, so a contract
+could promise `.perimeter_m -> float` while the module exposed nothing of the kind and every
+gate stayed green.
+
+That is the worse failure. A contract nobody checks drifts from its module silently, then
+misleads with authority, because a reader trusts it precisely for being written down.
+
+**Detect:** parse the Interface block, walk the module, and compare. A declared name that
+does not exist, a parameter list that differs, or an annotation that disagrees is a block.
+Matching is order-independent and all-or-nothing - the order a schema lists things in
+carries no meaning, and one unkept promise makes the contract false.
+**Judge:** a public name the contract never mentions. Either document it or make it private;
+an undocumented public name is a promise nobody wrote down.
+**Fix:** change whichever is wrong. If implementation revealed the interface should differ,
+edit the contract first - that is the step the whole flow exists to protect.
+
+The structural half of this is what function-calling evaluations call AST evaluation:
+compare a declaration against a schema without running anything. The executable half, which
+catches what structure cannot, is the sandbox from `scaffold_tests.py`.

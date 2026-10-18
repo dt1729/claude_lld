@@ -190,3 +190,35 @@ prevent. The AST supplies the obligation; a reader supplies the judgment.
 **Caught on the way in, by this repo's own gates:** rule 27 fired on two tests of the new
 scaffolder that called `ast.parse` and asserted nothing, and mypy caught a bytes constant
 that would have written `b'...'` into a generated test name.
+
+---
+
+## 007 — Nothing checked that a contract still described its module
+
+**Date:** 2026-10-18
+**Found by:** reading the Berkeley function-calling evaluation methodology, which compares a
+generated call against a function doc
+
+**What happened.** `validate_contract` checked that the Interface section existed and
+contained a code block. It never parsed the signature inside, and never compared it to the
+module. A contract could promise `.perimeter_m -> float` against a module exposing nothing
+of the kind, and every gate stayed green. This was defect 4 of the phase 4 review, left open
+since: "the contract and the implementation disagree, and the contract validator checks only
+that the section exists."
+
+**What changed.** `conformance.py` parses the Interface block as a schema and compares it to
+the module AST: declared names must exist, parameters must match by name, annotations must
+agree where both sides give one, and a public name the contract omits is reported as an
+undocumented promise. Order-independent and all-or-nothing, for the same reason the
+function-calling evaluations are: the order a schema lists things in carries no meaning, and
+one unkept promise makes the whole contract false.
+
+**What it exposed immediately.** Every fixture in `test_require_contract.py` paired a
+contract declaring `run(source, cfg)` with a module defining something else. Seven fixtures,
+none of which matched, and nothing had ever compared them. They now agree, and a new test
+asserts that drift is denied.
+
+**Caught on the way in, by this repo's own gates:** both `conformance` and `evaluate` crossed
+the complexity limit of 10 and were split; mypy caught a type-narrowing loss when a SIM102
+fix hoisted an `isinstance` into a boolean - the same mistake made earlier in
+`detect_patterns.py`, which is a sign it deserves a rule of its own.

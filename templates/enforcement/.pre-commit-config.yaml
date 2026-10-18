@@ -40,6 +40,13 @@ repos:
       # The plugin's own detector, run over whatever is being committed. Blocking
       # findings fail the commit; judgment-tier findings are reported and allowed,
       # because a person is present at commit time to weigh them.
+      - id: lld-contract-conformance
+        name: lld contract conformance
+        entry: python scripts/detect_gaps.py
+        language: system
+        files: ^src/.*\.py$
+        exclude: (^|/)tests?/
+
       - id: lld-anti-patterns
         name: lld anti-patterns
         entry: python scripts/detect_patterns.py

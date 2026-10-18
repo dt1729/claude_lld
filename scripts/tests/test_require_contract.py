@@ -66,7 +66,16 @@ def write_payload(project: Path, relative: str, content: str) -> dict[str, Any]:
     }
 
 
-def add_contract(project: Path, name: str, text: str = VALID_CONTRACT) -> None:
+#: The Interface block of the shared fixture contract, replaced per module so the contract
+#: and the module under test agree. Rule 37 checks that they do.
+FIXTURE_INTERFACE = "def run(source: FrameSource, cfg: Settings) -> Iterator[Detection]"
+
+
+def add_contract(
+    project: Path, name: str, text: str = VALID_CONTRACT, *, interface: str | None = None
+) -> None:
+    if interface is not None:
+        text = text.replace(FIXTURE_INTERFACE, interface)
     (project / "docs" / "contracts" / name).write_text(text, encoding="utf-8")
 
 
@@ -120,7 +129,7 @@ def test_new_module_with_an_invalid_contract_is_denied_with_the_errors(project: 
 
 
 def test_new_module_with_a_valid_contract_and_clean_code_is_allowed(project: Path) -> None:
-    add_contract(project, "pkg.thing.md")
+    add_contract(project, "pkg.thing.md", interface="def run(threshold: float) -> float")
     assert (
         decision(evaluate(write_payload(project, "src/pkg/thing.py", CLEAN_MODULE), project))
         == "allow"
@@ -147,14 +156,14 @@ def test_editing_an_existing_module_needs_no_contract(project: Path) -> None:
 
 
 def test_blocking_finding_is_denied_and_says_it_cannot_be_waived(project: Path) -> None:
-    add_contract(project, "pkg.thing.md")
+    add_contract(project, "pkg.thing.md", interface="Pool()\n  .instance -> 'Pool'")
     result = evaluate(write_payload(project, "src/pkg/thing.py", BLOCKING_MODULE), project)
     assert decision(result) == "deny"
     assert "cannot be waived" in reason(result)
 
 
 def test_judge_finding_is_denied_with_waiver_instructions(project: Path) -> None:
-    add_contract(project, "pkg.thing.md")
+    add_contract(project, "pkg.thing.md", interface="ReportGenerator(run)\n  .generate -> str")
     result = evaluate(write_payload(project, "src/pkg/thing.py", JUDGE_MODULE), project)
     assert decision(result) == "deny"
     assert "need your judgment" in reason(result)
@@ -162,7 +171,7 @@ def test_judge_finding_is_denied_with_waiver_instructions(project: Path) -> None
 
 
 def test_recorded_waiver_lets_a_judge_finding_through(project: Path) -> None:
-    add_contract(project, "pkg.thing.md")
+    add_contract(project, "pkg.thing.md", interface="ReportGenerator(run)\n  .generate -> str")
     (project / "docs" / "contracts" / "_waivers.md").write_text(
         "| path | rule | date | reason |\n| --- | --- | --- | --- |\n"
         "| src/pkg/thing.py | 8 | 2026-10-17 | the instance is a seam, substituted in tests |\n",
@@ -175,7 +184,7 @@ def test_recorded_waiver_lets_a_judge_finding_through(project: Path) -> None:
 
 
 def test_a_waiver_does_not_excuse_a_blocking_finding(project: Path) -> None:
-    add_contract(project, "pkg.thing.md")
+    add_contract(project, "pkg.thing.md", interface="Pool()\n  .instance -> 'Pool'")
     (project / "docs" / "contracts" / "_waivers.md").write_text(
         "| src/pkg/thing.py | 1 | 2026-10-17 | we like globals |\n",
         encoding="utf-8",
@@ -187,7 +196,7 @@ def test_a_waiver_does_not_excuse_a_blocking_finding(project: Path) -> None:
 
 
 def test_accumulated_waivers_are_called_out(project: Path) -> None:
-    add_contract(project, "pkg.thing.md")
+    add_contract(project, "pkg.thing.md", interface="ReportGenerator(run)\n  .generate -> str")
     rows = "".join(f"| src/pkg/thing.py | {rule} | 2026-10-17 | reason |\n" for rule in (2, 3, 10))
     (project / "docs" / "contracts" / "_waivers.md").write_text(rows, encoding="utf-8")
     result = evaluate(write_payload(project, "src/pkg/thing.py", JUDGE_MODULE), project)
@@ -221,7 +230,7 @@ def test_malformed_edit_yields_no_source() -> None:
 
 
 def test_unparseable_result_is_allowed_rather_than_guessed_at(project: Path) -> None:
-    add_contract(project, "pkg.thing.md")
+    add_contract(project, "pkg.thing.md", interface="def run(threshold: float) -> float")
     assert (
         decision(evaluate(write_payload(project, "src/pkg/thing.py", "def broken(:\n"), project))
         == "allow"
@@ -248,3 +257,11 @@ def test_junior_contract_is_refused_for_a_wide_new_module(project: Path) -> None
     result = evaluate(write_payload(project, "src/pkg/thing.py", wide), project)
     assert decision(result) == "deny"
     assert "junior" in reason(result)
+
+
+def test_a_contract_that_no_longer_describes_its_module_is_denied(project: Path) -> None:
+    """Rule 37: a contract nobody checks drifts, then misleads with authority."""
+    add_contract(project, "pkg.thing.md", interface="def run(source: Source) -> Report")
+    result = evaluate(write_payload(project, "src/pkg/thing.py", CLEAN_MODULE), project)
+    assert decision(result) == "deny"
+    assert "contract promises" in reason(result)
