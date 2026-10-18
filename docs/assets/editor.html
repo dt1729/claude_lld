@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>lld-seed demo frame</title>
+<style>
+  /* Palette and type from dt1729.github.io (_sass/_variables.scss): Ink / Paper,
+     hairline rules instead of shadows, neutral greys rather than blue-tinted. */
+  :root {
+    --bg: #151515; --surface: #212121; --fg: #e6e6e6; --muted: #9a9a9a;
+    --rule: #2a2a2a; --rule-hard: #3d3d3d; --accent: #82adea; --code-bg: #1c1c1c;
+    --deny: #d1595c; --allow: #7fb069; --amber: #d8a657;
+    --kw: #c58fd4; --str: #a2bf78; --def: #82adea; --num: #d8a657; --com: #6a6a6a;
+    --sans: "Segoe UI", -apple-system, Roboto, Helvetica, Arial, sans-serif;
+    --mono: Consolas, ui-monospace, SFMono-Regular, Menlo, "Liberation Mono", monospace;
+  }
+  :root[data-theme="light"] {
+    --bg: #fbfaf8; --surface: #f1efeb; --fg: #14171c; --muted: #5a6472;
+    --rule: #dfe1e6; --rule-hard: #c4c8cf; --accent: #1a5fb4; --code-bg: #f2f2ef;
+    --deny: #b3282b; --allow: #3f7d20; --amber: #8a6400;
+    --kw: #8250a8; --str: #3f7d20; --def: #1a5fb4; --num: #8a6400; --com: #7d7d7d;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    width: 1280px; height: 720px; background: var(--bg); color: var(--fg);
+    font-family: var(--sans); display: flex; flex-direction: column;
+  }
+
+  /* window chrome */
+  .window { flex: 1; display: flex; flex-direction: column; margin: 28px 32px;
+            border: 1px solid var(--rule-hard); border-radius: 8px; overflow: hidden;
+            background: var(--code-bg); }
+  .titlebar { display: flex; align-items: center; gap: 10px; padding: 0 14px;
+              height: 38px; background: var(--surface); border-bottom: 1px solid var(--rule); }
+  .dot { width: 11px; height: 11px; border-radius: 50%; background: var(--rule-hard); }
+  .project { margin-left: 12px; font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
+
+  .tabs { display: flex; background: var(--surface); border-bottom: 1px solid var(--rule); }
+  .tab { font-family: var(--mono); font-size: 13px; color: var(--muted);
+         padding: 9px 18px; border-right: 1px solid var(--rule); }
+  .tab.active { color: var(--fg); background: var(--code-bg);
+                box-shadow: inset 0 -2px 0 var(--accent); }
+
+  .body { flex: 1; display: flex; min-height: 0; }
+  .editor { flex: 1; display: flex; min-width: 0; overflow: hidden; }
+  .gutter { padding: 14px 10px 14px 18px; text-align: right; font-family: var(--mono);
+            font-size: 15px; line-height: 1.62; color: var(--com); user-select: none;
+            white-space: pre; flex: 0 0 auto; min-width: 46px; }
+  pre.code { flex: 1; margin: 0; padding: 14px 18px; font-family: var(--mono);
+             font-size: 15px; line-height: 1.62; white-space: pre; overflow: hidden; }
+
+  .kw { color: var(--kw); } .str { color: var(--str); } .def { color: var(--def); }
+  .num { color: var(--num); } .com { color: var(--com); } .pl { color: var(--fg); }
+  .faded { opacity: .28; }
+
+  .caret { display: inline-block; width: 8px; height: 17px; background: var(--accent);
+           vertical-align: -3px; }
+  .caret.off { opacity: 0; }
+
+  /* right panel */
+  .panel { width: 352px; border-left: 1px solid var(--rule); background: var(--bg);
+           display: flex; flex-direction: column; }
+  .panel h2 { font-family: var(--mono); font-size: 12px; letter-spacing: .08em;
+              text-transform: uppercase; color: var(--muted); font-weight: 500;
+              margin: 0; padding: 13px 16px; border-bottom: 1px solid var(--rule); }
+  .panel .lines { padding: 14px 16px; font-family: var(--mono); font-size: 13px;
+                  line-height: 1.7; white-space: pre-wrap; }
+  .panel .deny { color: var(--deny); } .panel .allow { color: var(--allow); }
+  .panel .dim { color: var(--muted); } .panel .amber { color: var(--amber); }
+  .panel .fg { color: var(--fg); } .panel .accent { color: var(--accent); }
+
+  /* status bar */
+  .status { height: 34px; display: flex; align-items: center; gap: 22px; padding: 0 16px;
+            background: var(--surface); border-top: 1px solid var(--rule);
+            font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
+  .status .chip.pending { color: var(--muted); }
+  .status .chip.run { color: var(--amber); }
+  .status .chip.ok { color: var(--allow); }
+  .status .chip.bad { color: var(--deny); }
+  .status .spacer { margin-left: auto; }
+
+  /* caption under the window */
+  .caption { height: 54px; display: flex; align-items: center; justify-content: center;
+             font-family: var(--sans); font-size: 19px; color: var(--muted); }
+  .caption > span { display: block; }
+  .caption b { color: var(--fg); font-weight: 600; }
+
+  /* title card */
+  body.title .window, body.title .caption { display: none; }
+  body.title { justify-content: center; align-items: center; text-align: center; }
+  .card { display: none; }
+  body.title .card { display: block; padding: 0 120px; }
+  .card h1 { font-family: Charter, Georgia, serif; font-size: 54px; margin: 0 0 14px; }
+  .card p { font-family: Charter, Georgia, serif; font-size: 22px; color: var(--muted);
+            margin: 0 0 36px; }
+  .card pre { background: var(--code-bg); border: 1px solid var(--rule); border-radius: 6px;
+              padding: 24px 30px; font-family: var(--mono); font-size: 18px;
+              line-height: 2; text-align: left; margin: 0; }
+</style>
+</head>
+<body>
+  <div class="window">
+    <div class="titlebar">
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      <span class="project" id="project"></span>
+    </div>
+    <div class="tabs" id="tabs"></div>
+    <div class="body">
+      <div class="editor">
+        <div class="gutter" id="gutter"></div>
+        <pre class="code" id="code"></pre>
+      </div>
+      <aside class="panel">
+        <h2 id="panel-title">lld-seed</h2>
+        <div class="lines" id="panel"></div>
+      </aside>
+    </div>
+    <div class="status" id="status"></div>
+  </div>
+  <div class="caption" id="caption"></div>
+  <div class="card" id="card"></div>
+
+<!--DATA-->
+<script>
+(function () {
+  var s = window.SCENE || {};
+  var esc = function (t) {
+    return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  };
+
+  if (s.theme === "light") document.documentElement.setAttribute("data-theme", "light");
+
+  if (s.layout === "title") {
+    document.body.classList.add("title");
+    document.getElementById("card").innerHTML =
+      "<h1>" + esc(s.title) + "</h1><p>" + esc(s.sub) + "</p><pre>" +
+      (s.commands || []).map(esc).join("\n") + "</pre>";
+    return;
+  }
+
+  document.getElementById("project").textContent = s.project || "";
+  document.getElementById("tabs").innerHTML = (s.tabs || [])
+    .map(function (t, i) {
+      return '<span class="tab' + (i === s.activeTab ? " active" : "") + '">' + esc(t) + "</span>";
+    }).join("");
+
+  // Tokens are [cssClass, text]. Revealing by character across the token stream keeps
+  // syntax colour correct while the code is only partly typed.
+  var budget = s.reveal === undefined ? Infinity : s.reveal;
+  var html = "", shown = 0;
+  (s.tokens || []).forEach(function (tok) {
+    if (budget <= 0) return;
+    var text = tok[1];
+    if (text.length > budget) text = text.slice(0, budget);
+    budget -= text.length;
+    shown += text.length;
+    html += '<span class="' + tok[0] + (s.faded ? " faded" : "") + '">' + esc(text) + "</span>";
+  });
+  if (s.caret) html += '<span class="caret' + (s.caretOff ? " off" : "") + '"></span>';
+  if (s.trailing) html += esc(s.trailing);
+  document.getElementById("code").innerHTML = html;
+
+  var full = (s.tokens || []).map(function (t) { return t[1]; }).join("");
+  var typed = full.slice(0, shown);
+  var lineCount = Math.max(typed.split("\n").length, s.minLines || 1);
+  var nums = [];
+  for (var i = 1; i <= lineCount; i++) nums.push(i);
+  document.getElementById("gutter").textContent = nums.join("\n");
+
+  document.getElementById("panel-title").textContent = s.panelTitle || "lld-seed";
+  document.getElementById("panel").innerHTML = (s.panel || []).join("\n");
+
+  document.getElementById("status").innerHTML = (s.status || [])
+    .map(function (c) { return '<span class="chip ' + c[1] + '">' + esc(c[0]) + "</span>"; })
+    .join("") + '<span class="spacer"></span><span class="chip ' +
+    ((s.verdict || [])[1] || "pending") + '">' + esc((s.verdict || [])[0] || "") + "</span>";
+
+  document.getElementById("caption").innerHTML =
+    s.caption ? "<span>" + s.caption + "</span>" : "";
+})();
+</script>
+</body>
+</html>

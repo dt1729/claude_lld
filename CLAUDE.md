@@ -18,7 +18,7 @@ The vocabulary is not negotiable mid-sentence: use module, interface, depth, sea
 | `commands/` | Slash commands |
 | `hooks/hooks.json` | Hook wiring; scripts live in `scripts/` |
 | `templates/` | Files the generator writes into target repos |
-| `docs/assets/` | README banner and demo. `frame.html` holds the demo's design; regenerate with `scripts/make_banner.py` and `scripts/make_demo.py` |
+| `docs/assets/` | README banner and demo. `editor.html` holds the demo's design in CSS; regenerate with `scripts/make_banner.py` and `scripts/make_demo.py` |
 | `.out-of-scope/` | Rejected ideas with reasoning. Read before proposing a feature |
 
 ## House rules
