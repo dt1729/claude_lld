@@ -36,8 +36,17 @@ Then, in the repo you want governed:
 
 ## Status
 
-v0.1.0, in development. Phases 3 (generator and hooks) and 4 (validation and pre-commit)
-are not yet built.
+v0.1.0. Built and validated against real code.
+
+- 137 tests, `ruff` + `mypy --strict` + `pre-commit` green, plugin validates.
+- Calibrated against a repository it did not write (`docs/incidents.md`, incident 001).
+- One module built end to end through the flow, then reviewed against every rule:
+  `docs/phase-4-review.md`. It passes every gate and has six semantic defects, which is the
+  honest measure of what this does and does not buy.
+
+**Unverified:** the `PreToolUse` hook has been exercised with real payloads through the
+exact command string the manifest declares, but never observed intercepting a write inside a
+live session — a plugin installed mid-session does not activate its hooks until restart.
 
 ## Credits
 
