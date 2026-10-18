@@ -80,4 +80,10 @@ The deep-module vocabulary, the design-it-twice procedure and the entry-point bo
 are adapted from [mattpocock/skills](https://github.com/mattpocock/skills), which applies
 them to TypeScript. Divergences are recorded in `GLOSSARY.md`.
 
+The demo pipeline — author each frame as HTML, screenshot it with headless Chrome, assemble
+with Pillow, transcode with ffmpeg — is taken from
+[Parth1811/JevFlow](https://github.com/Parth1811/JevFlow). Keeping the design in CSS rather
+than in drawing coordinates is their idea, and it is a better one than the approach it
+replaced here.
+
 MIT licensed.
