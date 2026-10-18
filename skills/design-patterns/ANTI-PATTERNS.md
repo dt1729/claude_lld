@@ -37,6 +37,20 @@ mechanically and handed to the model with the evidence, because the shape alone 
 | 24 | Exception caught, logged, and swallowed | AST->judge |
 | 25 | Log line with no subject | judge |
 | 26 | Secret or payload in a log line | judge |
+| 27 | Test that asserts nothing | AST |
+| 28 | Suite with no failure case | AST->judge |
+| 29 | Assertion on a substring too short to be wrong | AST->judge |
+| 30 | `sleep` in a test | AST |
+| 31 | Test importing past the entry-point boundary | AST |
+| 32 | More mocks than assertions | AST->judge |
+| 33 | Asserting that a call happened, not that behaviour is right | AST->judge |
+| 35 | Public name with no test referencing it | judge |
+| 36 | Test name joining two things with "and" | AST->judge |
+
+Rules 27 to 36 are decided by `scripts/detect_tests.py`, which reads the test files the
+structure detector excludes. Rule 34 (one test covering several behaviours) was specified,
+implemented, and removed: counting assertion subjects flagged 32 sound tests in this repo and
+no unsound ones. It is reviewed, not detected - see incident 005.
 
 ---
 
@@ -281,3 +295,81 @@ redact afterwards.
 **Judge:** a name-based signature (token, password, secret, key) catches the obvious cases
 and misses the ones that matter, so this is reviewed rather than detected. Log an
 identifier, never the payload.
+
+## 27. Test that asserts nothing
+
+A test with no `assert` and no `pytest.raises` passes whatever the code does. It raises the
+count and lowers the meaning.
+
+**Detect:** a `test_*` function with no assert, no raises, and no call to a `check_` /
+`verify_` / `assert_` helper that would carry the assertion.
+**Fix:** assert the behaviour, or delete the test.
+
+## 28. Suite with no failure case
+
+A suite of only happy paths has probably never seen the code fail, and a test that has never
+failed has not been shown to test anything.
+
+**Detect:** five or more tests in one module, none of which raises or is named for a failure.
+**Judge:** whether a module has a failure worth testing is a fact about the module, which a
+file-local detector cannot see. A pure function legitimately has none.
+**Fix:** add the error or boundary the module is supposed to handle.
+
+## 29. Assertion on a substring too short to be wrong
+
+`assert "1" in str(exc)` passes against any message containing a 1, including the wrong one.
+
+**Detect:** an `in` comparison whose left side is a string literal shorter than four
+characters, inside a test.
+**Judge:** a short literal is occasionally the whole point, such as a status code.
+**Fix:** assert the whole message, or give the exception a field and assert on that.
+
+## 30. `sleep` in a test
+
+A sleeping test is a flaky test with a timer attached: it is slow when it passes and
+misleading when it fails.
+
+**Detect:** a call to `sleep` anywhere in a test module.
+**Fix:** wait on the condition, or inject the clock so the test controls time.
+
+## 31. Test importing past the entry-point boundary
+
+Tests and callers cross the same seam. A test reaching into a private subpackage tests
+something no caller can reach, and freezes an implementation detail.
+
+**Detect:** an absolute `from pkg.lib...` / `.internal` / `.impl` import in a test module.
+**Fix:** import the root module that owns the public name. If the behaviour is unreachable
+from there, the module is the wrong shape.
+
+## 32. More mocks than assertions
+
+When the mocks outnumber the assertions, the subject under test is the mock.
+
+**Detect:** more `Mock` / `patch` constructions than `assert` statements in one test.
+**Judge:** legitimate when the collaborators are genuinely remote or slow.
+**Fix:** a real collaborator, or one fake that satisfies the seam.
+
+## 33. Asserting that a call happened, not that behaviour is right
+
+`store.save.assert_called_once()` tests the implementation. It keeps passing after the
+implementation stops working, and fails after a harmless refactor.
+
+**Detect:** a call to `assert_called*` / `assert_any_call` / `assert_has_calls` in a test.
+**Judge:** legitimate when the call *is* the behaviour, such as an audit log.
+**Fix:** assert the result, or the observable effect on a fake.
+
+## 35. Public name with no test referencing it
+
+**Judge:** needs the module-to-test mapping, which the detector does not build. Reviewed
+against the contract's Tests section, which lists the behaviours that should exist.
+
+## 36. Test name joining two things with "and"
+
+A test named for two behaviours fails for two reasons, so its name stops identifying what
+broke.
+
+**Detect:** `_and_` in a test function name.
+**Judge:** the name may describe one thing that happens to contain "and", as in
+`test_class_with_init_and_one_method`. The detector cannot tell those apart, which is why
+this is not a block.
+**Fix:** split it, so the name of a failure is the behaviour that broke.

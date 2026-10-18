@@ -11,7 +11,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from detect_patterns import BLOCK, JUDGE, detect
+from detect_patterns import detect
+from findings import BLOCK, JUDGE
 
 LIBRARY = Path("src/pkg/thing.py")
 COMPOSITION_ROOT = Path("src/pkg/cli.py")

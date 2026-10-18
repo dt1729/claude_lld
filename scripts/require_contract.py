@@ -29,6 +29,7 @@ from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import detect_tests
 from contracts import (
     WAIVER_FILE,
     contract_path_for,
@@ -38,7 +39,8 @@ from contracts import (
     waiver_count,
     waiver_row,
 )
-from detect_patterns import BLOCK, JUDGE, detect
+from detect_patterns import detect
+from findings import BLOCK, JUDGE
 from logsetup import configure, log_path
 
 log = logging.getLogger("lld.gate")
@@ -180,6 +182,43 @@ def _findings_message(module: Path, blocking: list[Any], judging: list[Any], wai
     return "\n".join(lines)
 
 
+def _evaluate_test(
+    tool: str, tool_input: dict[str, Any], absolute: Path, module: Path, started: float
+) -> dict[str, Any]:
+    """Decide a write to a test file. Tests carry no contract; they carry the test rules."""
+    current = absolute.read_text(encoding="utf-8") if absolute.exists() else ""
+    source = resulting_source(tool, tool_input, current)
+    if source is None:
+        return _allow()
+    try:
+        findings = detect_tests.detect(source, module)
+    except SyntaxError:
+        return _allow()
+
+    blocking = [f for f in findings if f.verdict == BLOCK]
+    judging = [f for f in findings if f.verdict == JUDGE]
+    elapsed_ms = (time.perf_counter() - started) * 1000
+    if not blocking:
+        log.info(
+            "allow %s: test file, %d findings for review (%.0f ms)",
+            module.as_posix(),
+            len(judging),
+            elapsed_ms,
+        )
+        return _allow()
+
+    log.info(
+        "deny %s: %d blocking test findings (%.0f ms)", module.as_posix(), len(blocking), elapsed_ms
+    )
+    lines = ["A test that cannot fail does not test anything:"]
+    lines += [f"  line {f.line}: [{f.rule:02d}] {f.name} - {f.message}" for f in blocking]
+    if judging:
+        lines.append("")
+        lines.append("Also worth a look, not blocking:")
+        lines += [f"  line {f.line}: [{f.rule:02d}] {f.name} - {f.message}" for f in judging]
+    return _deny("\n".join(lines))
+
+
 def evaluate(payload: dict[str, Any], project_dir: Path, src_root: str = "src") -> dict[str, Any]:
     """Decide one tool call. Pure apart from reading the file, contract and ledger."""
     started = time.perf_counter()
@@ -195,6 +234,10 @@ def evaluate(payload: dict[str, Any], project_dir: Path, src_root: str = "src") 
         module = absolute.relative_to(project_dir)
     except ValueError:
         module = absolute
+
+    if detect_tests.is_test_file(module):
+        return _evaluate_test(tool, tool_input, absolute, module, started)
+
     if not in_scope(module, src_root):
         log.info("allow %s %s: outside the gate's scope", tool, module.as_posix())
         return _allow()

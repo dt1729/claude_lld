@@ -46,3 +46,11 @@ repos:
         language: system
         types: [python]
         exclude: ^scripts/tests/
+
+      # Test quality. Blocking findings fail the commit; judgment-tier ones are
+      # reported and allowed, because a person is present to weigh them.
+      - id: lld-test-quality
+        name: lld test quality
+        entry: python scripts/detect_tests.py
+        language: system
+        files: (^|/)tests?/.*\.py$|(^|/)test_.*\.py$

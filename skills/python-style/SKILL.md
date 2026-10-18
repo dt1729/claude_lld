@@ -21,6 +21,8 @@ Two neighbours own what this skill does not:
 - Which construct to use — inheritance, Protocol, factory, singleton — and the anti-pattern
   list the gate enforces: [design-patterns](../design-patterns/SKILL.md).
 - What a module logs, at which level, and what it must never log: [logging](../logging/SKILL.md).
+- What to assert, when a fake beats a mock, how a test earns its place:
+  [test-design](../test-design/SKILL.md).
 
 ## What is enforced mechanically
 

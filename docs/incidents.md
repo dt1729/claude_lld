@@ -128,3 +128,37 @@ concrete base still blocks.
 system contradicting itself, and it was unwaivable, so following the guidance made the gate
 unusable. No amount of review would have found it: it took writing one real module. Everything
 in this plugin written without that loop should be assumed to contain more of these.
+
+---
+
+## 005 — Three of ten test rules were wrong on first contact
+
+**Date:** 2026-10-18
+**Found by:** a dogfood test asserting this repo's own suite passes the rules it defines
+
+**What happened.** The test tier was specified as ten rules and implemented in one sitting.
+Run against the 137 tests already in this repo, three of them misfired:
+
+- **Rule 34** (one test covering several behaviours) counted distinct names inside assert
+  statements as a proxy for distinct subjects. `assert 1 in rules(src)` followed by
+  `assert verdict_of(src, 1) == BLOCK` reads as four subjects when it is one behaviour
+  checked twice. 32 findings, every one of them sound code.
+- **Rule 28** (no failure case) looked only for `pytest.raises`. The detector suites test
+  failure by asserting a rule fires, and `merge_claude_md` raises nothing at all. 5 findings,
+  all wrong, and all at block tier.
+- **Rule 36** (name joins two behaviours) matched `_and_`, which cannot distinguish
+  `test_validates_and_saves` from `test_class_with_init_and_one_method`. 6 findings, mostly
+  naming one thing.
+
+**What changed.** Rule 34 was removed from the detector: counting assertion subjects has no
+signature that separates the two cases, so it is reviewed rather than detected, alongside
+entries 17, 18, 25, 26 and 35. Rule 28 is now judgment, needs five tests before it applies,
+and treats a failure-shaped test name as a failure case. Rule 36 is judgment.
+
+**What it says about the corpus.** Seven of ten rules survived contact; three did not, and
+two of the three would have blocked correct code. The same ratio should be assumed for any
+tier written in one sitting — which is the argument for building the C/C++ tier against real
+repositories rather than from a specification.
+
+**Worth noting:** the rules were caught by a test that applies them to the suite that defines
+them. That test is cheap, and every future tier should ship with one.

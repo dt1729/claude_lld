@@ -52,7 +52,9 @@ Include at least one failure case and one boundary. A test list of only happy pa
 shallow-test failure mode, and it is visible at this step rather than three weeks later.
 
 Tests live in `<package>/tests/test_<module>.py` and import the module through its public
-path, never by reaching into a subfolder.
+path, never by reaching into a subfolder. What makes an assertion load-bearing, and when a
+fake beats a mock, is in [test-design](../test-design/SKILL.md); the gate refuses a test
+that asserts nothing.
 
 ## 4. Implement
 

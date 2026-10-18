@@ -26,12 +26,10 @@ from typing import Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from findings import BLOCK, JUDGE, Finding, format_report
 from logsetup import configure
 
 log = logging.getLogger("lld.detect")
-
-BLOCK: Final = "block"
-JUDGE: Final = "judge"
 
 #: Calls that are cheap and pure, so a module-level assignment from one is not a side effect.
 PURE_CALLS: Final = frozenset(
@@ -148,17 +146,6 @@ MUTATING_METHODS: Final = frozenset(
         "sort",
     }
 )
-
-
-@dataclass(frozen=True, slots=True)
-class Finding:
-    """One detected anti-pattern occurrence."""
-
-    rule: int
-    name: str
-    line: int
-    verdict: str
-    message: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -953,20 +940,6 @@ def detect(source: str, path: Path, src_root: str = "src") -> list[Finding]:
         ctx.is_root_module,
     )
     return findings
-
-
-def format_report(findings: Sequence[Finding]) -> str:
-    """Human-readable report, grouped by verdict so the blocking ones read first."""
-    if not findings:
-        return "no anti-patterns detected"
-    lines: list[str] = []
-    for verdict, header in ((BLOCK, "BLOCKING"), (JUDGE, "NEEDS JUDGMENT")):
-        group = [f for f in findings if f.verdict == verdict]
-        if not group:
-            continue
-        lines.append(f"{header} ({len(group)}):")
-        lines.extend(f"  line {f.line}: [{f.rule:02d}] {f.name} - {f.message}" for f in group)
-    return "\n".join(lines)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

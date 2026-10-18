@@ -9,7 +9,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from detect_patterns import BLOCK, JUDGE, detect, format_report
+from detect_patterns import detect
+from findings import BLOCK, JUDGE, format_report
 
 ROOT_MODULE = Path("src/pkg/thing.py")
 SUBFOLDER_MODULE = Path("src/pkg/lib/thing.py")
