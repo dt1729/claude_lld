@@ -1,8 +1,39 @@
-# claude_lld
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/banner-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/banner-light.png">
+    <img src="docs/assets/banner-dark.png" alt="lld-seed: your coding agent designs before it writes, or it does not write" width="100%">
+  </picture>
+</p>
 
-A Claude Code plugin (`lld-seed`) that makes coding agents design before they implement.
+<p align="center">
+  <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg">
+  <img alt="Python 3.12+" src="https://img.shields.io/badge/python-3.12%2B-blue.svg">
+  <img alt="Runtime dependencies: none" src="https://img.shields.io/badge/runtime%20deps-stdlib%20only-brightgreen.svg">
+  <img alt="Tests: 137 passing" src="https://img.shields.io/badge/tests-137%20passing-brightgreen.svg">
+  <img alt="Status: v0.1.0" src="https://img.shields.io/badge/status-v0.1.0-orange.svg">
+</p>
 
-Agents default to code that exists and runs: no low-level design, no seams between
+## Install
+
+```
+/plugin marketplace add dt1729/claude_lld
+/plugin install lld-seed@dt1729
+```
+
+Then, in the Python repo you want governed:
+
+```
+/lld-seed:scaffold-guidance
+```
+
+> **It will refuse writes.** A `PreToolUse` hook blocks new modules under `src/` that have no
+> design contract. That is the feature. `LLD_GATE=off` disables it; `.lld/gate.log` records
+> every decision it makes.
+
+## Why
+
+Coding agents default to code that exists and runs: no low-level design, no seams between
 independent logic, no compartmentalisation. Flat functions, shallow tests and tangled imports
 follow from that. This plugin supplies the missing step and refuses to let it be skipped.
 
@@ -20,19 +51,6 @@ follow from that. This plugin supplies the missing step and refuses to let it be
 
 Anything a tool can check is enforced by the tool and named, not restated, in the prose.
 See `SCOPE.md` for the division of labour.
-
-## Install
-
-```bash
-/plugin marketplace add dt1729/claude_lld
-/plugin install lld-seed@dt1729
-```
-
-Then, in the repo you want governed:
-
-```
-/lld-seed:scaffold-guidance
-```
 
 ## Status
 
