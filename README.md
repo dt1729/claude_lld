@@ -14,6 +14,14 @@
   <img alt="Status: v0.1.0" src="https://img.shields.io/badge/status-v0.1.0-orange.svg">
 </p>
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/demo.gif">
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/demo-light.gif">
+    <img src="docs/assets/demo.gif" alt="The gate refusing an undesigned write, then allowing one with a contract" width="100%">
+  </picture>
+</p>
+
 ## Install
 
 ```
