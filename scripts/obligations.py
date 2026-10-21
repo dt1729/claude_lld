@@ -14,8 +14,12 @@ the judgment.
 from __future__ import annotations
 
 import ast
+import re
+import textwrap
 from dataclasses import dataclass
 from typing import Final
+
+from contracts import Precondition
 
 #: Comparison operators that mark a guard boundary, and how the boundary reads.
 BOUNDARY_OPS: Final[dict[type[ast.cmpop], str]] = {
@@ -31,6 +35,27 @@ PUBLIC_NAME: Final = "public-name"
 RAISE: Final = "raise"
 BOUNDARY: Final = "boundary"
 
+#: An obligation that comes from the contract rather than from the code. Every other kind
+#: here reads the syntax tree and asks "what does this module do?". This one reads the
+#: Preconditions table and asks "what did the author promise it refuses?" - which is the
+#: question the source cannot answer, because a guard that was never written leaves no trace.
+PRECONDITION: Final = "precondition"
+
+_NUMBER: Final = re.compile(r"-?\d+(?:\.\d+)?")
+
+
+def _fail_call(message: str) -> str:
+    """``pytest.fail(...)``, wrapped so the generated file passes the linter it ships with.
+
+    A long message becomes implicitly concatenated string parts rather than one long line;
+    a backslash continuation inside a string literal would change the message itself.
+    """
+    if len(message) <= 70:
+        return f'    pytest.fail("{message}")\n'
+    parts = textwrap.wrap(message, width=70)
+    body = "\n".join(f'        "{part}{" " if part is not parts[-1] else ""}"' for part in parts)
+    return f"    pytest.fail(\n{body}\n    )\n"
+
 
 @dataclass(frozen=True, slots=True)
 class Obligation:
@@ -41,15 +66,34 @@ class Obligation:
     line: int
     reason: str
     suggested_name: str
+    #: What the author has to do, when the obligation knows. A contract row knows the
+    #: condition to violate and the values worth trying; "not written yet" does not.
+    instruction: str = ""
 
     def as_stub(self) -> str:
-        """A failing test stub. Red by construction, so it cannot pass unwritten."""
+        """A failing test stub. Red by construction, so it cannot pass unwritten.
+
+        Wrapped to the line length this plugin configures in the repositories it seeds. A
+        contract row carries a real condition, and unwrapped it ran past 100 characters -
+        a generator whose output fails the linter the same generator installed is the
+        system contradicting itself, which is incident 004.
+
+        The scaffolded file still reports F401 on its import line: the names are imported
+        for the tests the author is about to write, and no stub uses them yet. That is
+        older than this method and is not fixed here.
+        """
+        where = (
+            f"the contract's Preconditions table, row {self.line + 1}"
+            if self.kind == PRECONDITION
+            else f"line {self.line} of the module under test"
+        )
+        summary = textwrap.fill(self.reason, width=94, subsequent_indent="    ")
         return (
             f"def {self.suggested_name}() -> None:\n"
-            f'    """{self.reason}\n\n'
-            f"    Obligation: {self.kind} at line {self.line} of the module under test.\n"
+            f'    """{summary}\n\n'
+            f"    Obligation: {self.kind} from {where}.\n"
             f'    """\n'
-            f'    pytest.fail("not written yet")\n'
+            f"{_fail_call(self.instruction or 'not written yet')}"
         )
 
 
@@ -201,14 +245,66 @@ def _raise_obligations(tree: ast.Module) -> list[Obligation]:
     return found
 
 
-def obligations(source: str) -> list[Obligation]:
+def _as_claim(parameter: str, condition: str) -> str:
+    """``> 0`` is shorthand; spelled out it is ``width > 0``, which reads as a claim."""
+    text = condition.strip()
+    return f"{parameter} {text}" if text[:1] in "<>=!" else text
+
+
+def boundary_hints(condition: str) -> list[str]:
+    """The numbers in a condition, which are where a violating value lives.
+
+    ``0 < hfov_deg < 180`` hands back ``0`` and ``180``. These are hints in a failure
+    message, never generated arguments: the stub still refuses to pass until a person picks
+    the value and writes the assertion.
+    """
+    return _NUMBER.findall(condition)
+
+
+def precondition_obligations(rows: list[Precondition]) -> list[Obligation]:
+    """One rejection test per parameter the contract promises to refuse.
+
+    Only ``reject`` rows produce one. ``clamp`` substitutes rather than raises, so a test
+    asserting an exception would be wrong; ``propagate`` is the author stating that nothing
+    is checked, and a test for unchecked behaviour tests the caller.
+    """
+    found: list[Obligation] = []
+    for index, row in enumerate(rows):
+        if row.verdict != "reject":
+            continue
+        condition = _as_claim(row.parameter, row.must_satisfy)
+        hints = boundary_hints(row.must_satisfy)
+        suffix = f" (the boundary values are {', '.join(hints)})" if hints else ""
+        found.append(
+            Obligation(
+                kind=PRECONDITION,
+                target=row.parameter,
+                line=index,
+                reason=(
+                    f"The contract promises {row.parameter} is rejected unless "
+                    f"{condition}. Nothing proves that until a test violates it."
+                ),
+                suggested_name=f"test_rejects_{_snake(row.parameter)}",
+                instruction=(
+                    f"pass a {row.parameter} violating {condition}{suffix} and assert the rejection"
+                ),
+            )
+        )
+    return found
+
+
+def obligations(source: str, preconditions: list[Precondition] | None = None) -> list[Obligation]:
     """Every test this module owes, ordered by the line that demands it.
+
+    Contract obligations come first: they are numbered by table row rather than by source
+    line, because the code they describe may not exist yet - which is the point.
 
     Raises SyntaxError if the source does not parse.
     """
     tree = ast.parse(source)
-    found = _name_obligations(tree) + _raise_obligations(tree)
-    return sorted(found, key=lambda o: (o.line, o.kind, o.target))
+    from_contract = precondition_obligations(preconditions or [])
+    from_code = _name_obligations(tree) + _raise_obligations(tree)
+    return from_contract + sorted(from_code, key=lambda o: (o.line, o.kind, o.target))
 
 
 def public_constructors(source: str) -> list[tuple[str, list[str]]]:

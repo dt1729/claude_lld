@@ -71,11 +71,17 @@ class Waiver:
 
 @dataclass(frozen=True, slots=True)
 class Precondition:
-    """One parameter, what it must satisfy, and what happens when it does not."""
+    """One parameter, what it must satisfy, and what happens when it does not.
+
+    ``verdict`` is the recognised word; ``detail`` is the whole cell it came from, because
+    the cell often names the exception - ``reject - InvalidFovError naming the value`` -
+    and a projection into code needs that name.
+    """
 
     parameter: str
     must_satisfy: str
     verdict: str
+    detail: str = ""
 
 
 def contract_path_for(module_path: Path, src_root: str = "src") -> Path:
@@ -150,13 +156,14 @@ def parse_preconditions(text: str) -> list[Precondition]:
         parameter = _strip_markup(match.group("parameter"))
         if parameter.lower() in _HEADER_CELL or set(parameter) <= {"-", ":"}:
             continue
-        cell = _strip_markup(match.group("verdict")).lower()
-        verdict = next((v for v in VALID_VERDICTS if v in cell), "")
+        detail = _strip_markup(match.group("verdict"))
+        verdict = next((v for v in VALID_VERDICTS if v in detail.lower()), "")
         found.append(
             Precondition(
                 parameter=parameter,
                 must_satisfy=_strip_markup(match.group("must_satisfy")),
                 verdict=verdict,
+                detail=detail,
             )
         )
     return found

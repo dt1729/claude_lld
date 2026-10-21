@@ -30,6 +30,7 @@ from typing import Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from contracts import Precondition, contract_path_for, parse_preconditions
 from logsetup import configure
 from obligations import Obligation, obligations, public_constructors
 
@@ -53,9 +54,27 @@ def test_path_for(module: Path) -> Path:
     return module.parent / "tests" / f"test_{module.name}"
 
 
-def render_tests(module: Path, source: str, src_root: str = "src") -> str:
-    """The test skeleton for a module, one failing stub per obligation."""
-    owed = obligations(source)
+def read_preconditions(module: Path, src_root: str = "src") -> list[Precondition]:
+    """The contract's Preconditions rows, or none when there is no contract to read."""
+    contract = contract_path_for(module, src_root)
+    if not contract.exists():
+        return []
+    return parse_preconditions(contract.read_text(encoding="utf-8"))
+
+
+def render_tests(
+    module: Path,
+    source: str,
+    src_root: str = "src",
+    preconditions: list[Precondition] | None = None,
+) -> str:
+    """The test skeleton for a module, one failing stub per obligation.
+
+    Obligations come from two places. The AST says what the module does; the contract's
+    Preconditions table says what it promised to refuse, which the AST cannot see because a
+    guard that was never written leaves no trace in the source.
+    """
+    owed = obligations(source, preconditions)
     dotted = module_import_path(module, src_root)
     names = sorted({o.target.split(".")[0] for o in owed if o.kind == "public-name"})
     raised = sorted({o.target for o in owed if o.kind == "raise"})
@@ -211,8 +230,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     except OSError as exc:
         print(f"cannot read {args.module}: {exc}", file=sys.stderr)
         return 2
+    rows = read_preconditions(args.module, args.src_root)
     try:
-        owed = obligations(source)
+        owed = obligations(source, rows)
     except SyntaxError as exc:
         print(f"{args.module} does not parse: {exc}", file=sys.stderr)
         return 2
@@ -221,7 +241,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(_report(owed))
         return 0
 
-    tests = render_tests(args.module, source, args.src_root)
+    tests = render_tests(args.module, source, args.src_root, rows)
     sandbox = render_sandbox(args.module, source, args.src_root)
 
     if not args.write:

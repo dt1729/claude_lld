@@ -38,7 +38,38 @@ answers questions about shape, and "this function divides by a number the caller
 is a question about the relationship between a parameter and what is done to it. The full
 proposal, with its measurements, is `docs/proposals/001-preconditions.md`.
 
-Step 1 only: the section and its validator. No Semgrep, no new engine, no generated guards.
+Step 1 of the proposal: the section and its validator. No Semgrep, no new engine.
+
+### The table is executable now, in two directions
+
+**Tests.** `scaffold_tests.py` emits one rejection stub per `reject` row, named
+`test_rejects_<parameter>`. The stub still fails until a person writes it - no generated
+assertion, the rule the whole scaffolder follows - but it says what to do rather than
+`not written yet`, and offers the boundary values from the condition, which is where
+off-by-one lives. `clamp` and `propagate` rows produce nothing: clamp substitutes rather
+than raises, so a test asserting an exception would be wrong, and propagate is the author
+stating that nothing is checked.
+
+**Conditions.** `/lld-seed:conditions` projects the table into the module's own docstrings,
+where CrossHair can read it. A contract in `docs/contracts/*.md` is a contract nothing can
+run - CrossHair reports `Targets found, but contain no checkable functions` against a module
+whose claims are all in markdown.
+
+The verdict decides which condition is correct, and this is the part that is easy to get
+backwards. CrossHair's `pre:` means *assume this holds, do not explore outside it*:
+
+| Verdict | Emits | Why |
+| --- | --- | --- |
+| `reject` | `raises: <Error>` | The function is total. A `pre:` would tell CrossHair to skip the exact inputs the guard exists for |
+| `clamp` | nothing | Total, defined everywhere, raises nothing |
+| `propagate` | `pre: <condition>` | The one case where a precondition is literally true |
+
+Emitting `pre:` everywhere - the obvious implementation - would suppress exactly the
+counterexamples worth having. See `docs/proposals/001a-where-contracts-execute.md`.
+
+The projection edits a file you already own, so it never writes without `--write`, skips a
+function with no docstring, and skips a prose condition rather than emit an unparseable
+`pre:`. Rule 39 reports a block that has drifted from its contract.
 
 ## 0.6.0 — 2026-10-21
 

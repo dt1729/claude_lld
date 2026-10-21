@@ -6,6 +6,7 @@ against and its shape is the one the plugin tells people to write.
 
 from __future__ import annotations
 
+import ast
 import sys
 from pathlib import Path
 
@@ -13,9 +14,19 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from contracts import Precondition
 from detect_gaps import gaps
 from findings import BLOCK, JUDGE
-from obligations import BOUNDARY, PUBLIC_NAME, RAISE, obligations, public_constructors
+from obligations import (
+    BOUNDARY,
+    PRECONDITION,
+    PUBLIC_NAME,
+    RAISE,
+    boundary_hints,
+    obligations,
+    precondition_obligations,
+    public_constructors,
+)
 
 SQUARE = '''"""A square, whose side length cannot be zero or negative."""
 
@@ -203,3 +214,86 @@ def test_an_unparseable_suite_does_not_mask_the_gaps() -> None:
     """A broken test file means nothing is covered, not that everything is."""
     blocking = [f for f in gaps(SQUARE, "def broken(:\n") if f.verdict == BLOCK]
     assert blocking != []
+
+
+# --- obligations that come from the contract, not the code ------------------------------------
+#
+# Every other kind here reads the syntax tree. These read the Preconditions table, because a
+# guard that was never written leaves no trace in the source - which is exactly the gap
+# proposal 001 found: every gate green on code with no validation anywhere.
+
+
+def _row(parameter: str, must: str, verdict: str, detail: str = "") -> Precondition:
+    return Precondition(parameter, must, verdict, detail or verdict)
+
+
+REJECT_FOV = _row("hfov_deg", "0 < hfov_deg < 180", "reject", "reject - InvalidFovError")
+
+
+def test_a_reject_row_owes_a_rejection_test() -> None:
+    owed = precondition_obligations([REJECT_FOV])
+    assert [o.suggested_name for o in owed] == ["test_rejects_hfov_deg"]
+    assert owed[0].kind == PRECONDITION
+
+
+def test_a_clamp_row_owes_no_rejection_test() -> None:
+    """Clamp substitutes rather than raises; a test asserting an exception would be wrong."""
+    assert precondition_obligations([_row("rate", "> 0", "clamp")]) == []
+
+
+def test_a_propagate_row_owes_no_rejection_test() -> None:
+    """The author is stating nothing is checked. A test for that tests the caller."""
+    assert precondition_obligations([_row("marks", "ascending t", "propagate")]) == []
+
+
+def test_the_boundary_values_are_offered_as_hints() -> None:
+    """Where off-by-one lives, handed to the author rather than guessed into an assertion."""
+    assert boundary_hints("0 < hfov_deg < 180") == ["0", "180"]
+
+
+def test_a_condition_with_no_numbers_offers_no_hints() -> None:
+    assert boundary_hints("ascending t") == []
+
+
+def test_the_stub_says_what_to_do_rather_than_not_written_yet() -> None:
+    owed = precondition_obligations([REJECT_FOV])[0]
+    assert "violating 0 < hfov_deg < 180" in owed.instruction
+    assert "the boundary values are 0, 180" in owed.instruction
+    assert "not written yet" not in owed.as_stub()
+
+
+def test_the_stub_still_fails_until_someone_writes_it() -> None:
+    """The rule the whole scaffolder follows: no generated assertion, ever."""
+    assert "pytest.fail(" in precondition_obligations([REJECT_FOV])[0].as_stub()
+
+
+def test_a_shorthand_condition_reads_as_a_claim() -> None:
+    """`rejected unless > 0` is not a sentence; `rejected unless width > 0` is."""
+    assert "width > 0" in precondition_obligations([_row("width", "> 0", "reject")])[0].reason
+
+
+def test_no_generated_line_exceeds_the_shipped_line_length() -> None:
+    """A generator whose output fails the linter it installed is incident 004."""
+    stub = precondition_obligations([REJECT_FOV])[0].as_stub()
+    assert max(len(line) for line in stub.splitlines()) <= 100
+
+
+def test_the_generated_stub_is_valid_python() -> None:
+    """Wrapping a long message into string parts is where a generator breaks its output."""
+    tree = ast.parse(precondition_obligations([REJECT_FOV])[0].as_stub())
+    assert [f.name for f in tree.body if isinstance(f, ast.FunctionDef)] == [
+        "test_rejects_hfov_deg"
+    ]
+
+
+def test_contract_obligations_come_before_the_code_ones() -> None:
+    """A row is numbered by table position; the code it describes may not exist yet."""
+    source = "def run(hfov_deg: float) -> float:\n    return hfov_deg\n"
+    kinds = [o.kind for o in obligations(source, [REJECT_FOV])]
+    assert kinds[0] == PRECONDITION
+    assert PUBLIC_NAME in kinds
+
+
+def test_a_module_with_no_contract_rows_is_unchanged() -> None:
+    source = "def run(x: int) -> int:\n    return x\n"
+    assert obligations(source) == obligations(source, [])

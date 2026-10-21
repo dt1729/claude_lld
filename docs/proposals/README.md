@@ -16,6 +16,7 @@ same thing in a longer form.
 | # | Title | Status | Source |
 | --- | --- | --- | --- |
 | [001](001-preconditions.md) | Precondition checking | **open** | applying v0.5.0 to `trackscope` |
+| [001a](001a-where-contracts-execute.md) | Where a contract lives, and what the module carries | **decided** | 001 Appendix B |
 
 ## 001 in one paragraph
 
