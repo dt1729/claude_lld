@@ -10,7 +10,7 @@
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg">
   <img alt="Python 3.12+" src="https://img.shields.io/badge/python-3.12%2B-blue.svg">
   <img alt="Runtime dependencies: none" src="https://img.shields.io/badge/runtime%20deps-stdlib%20only-brightgreen.svg">
-  <img alt="Tests: 137 passing" src="https://img.shields.io/badge/tests-237%20passing-brightgreen.svg">
+  <img alt="Tests: 137 passing" src="https://img.shields.io/badge/tests-254%20passing-brightgreen.svg">
   <img alt="Status: v0.1.0" src="https://img.shields.io/badge/status-v0.1.0-orange.svg">
 </p>
 
@@ -66,6 +66,7 @@ follow from that. This plugin supplies the missing step and refuses to let it be
 | Contract drift | Rules 37 and 38 — the contract's factual half is generated from the code, and checked |
 | Gate | `PreToolUse` hook — no implementation in `src/` without a contract |
 | Enforcement | ruff, mypy `--strict`, import-linter, pytest, pre-commit |
+| Diagrams | `/lld-seed:diagram` — inheritance, dependencies, control flow and errors, drawn from the AST with a controlled vocabulary |
 | Folder guidance | `/lld-seed:scaffold-guidance` — only where an agent needs orienting, never a sweep |
 
 Anything a tool can check is enforced by the tool and named, not restated, in the prose.
@@ -75,7 +76,7 @@ See `SCOPE.md` for the division of labour.
 
 v0.1.0. Built and validated against real code.
 
-- 237 tests, `ruff` + `mypy --strict` + `pre-commit` green, plugin validates.
+- 254 tests, `ruff` + `mypy --strict` + `pre-commit` green, plugin validates.
 - Calibrated against a repository it did not write (`docs/incidents.md`, incident 001).
 - One module built end to end through the flow, then reviewed against every rule:
   `docs/phase-4-review.md`. It passes every gate and has six semantic defects, which is the
