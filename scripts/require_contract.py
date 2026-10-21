@@ -135,8 +135,8 @@ def _missing_contract_message(module: Path, contract: Path, errors: list[str]) -
         f"{head}\n\n"
         f"This is a new module, so the design step has not happened yet. Write "
         f"{contract.as_posix()} following the new-module skill (step 2), then repeat this "
-        f"write. Fill Responsibility, Interface, Seam, Dependencies, Errors, Tests and "
-        f"Deletion test; if the Deletion test answer is 'nothing', do not create the module."
+        f"write. Fill Responsibility, Interface, Preconditions, Seam, Dependencies, Errors, "
+        f"Tests and Deletion test; if the Deletion test answer is 'nothing', do not create it."
     )
 
 

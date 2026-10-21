@@ -19,15 +19,24 @@ Produce the contract first, in a file, then write code against it. A contract re
 1. **Responsibility** — one sentence. If it needs "and", you have two modules.
 2. **Interface** — public names with signatures, plus the facts types cannot carry:
    invariants, ordering constraints, error modes, units, required configuration.
-3. **Seam** — where the interface lives, and what varies across it.
-4. **Dependencies** — what this module may import, and what may import it.
-5. **Test list** — behaviours exercised through the interface, including failure modes.
-6. **Deletion test** — what complexity reappears in callers if this module vanishes.
+3. **Preconditions** — one row per parameter: what it must satisfy, and which of
+   `reject` / `clamp` / `propagate` happens when it does not. The type says `float`; it does
+   not say `0 < hfov_deg < 180`, and the gap between those is where the silent failures live.
+4. **Seam** — where the interface lives, and what varies across it.
+5. **Dependencies** — what this module may import, and what may import it.
+6. **Test list** — behaviours exercised through the interface, including failure modes.
+7. **Deletion test** — what complexity reappears in callers if this module vanishes.
 
 The format and a worked example are in
 [new-module/CONTRACT-FORMAT.md](../new-module/CONTRACT-FORMAT.md). The `new-module` skill
 scaffolds one. A `PreToolUse` hook refuses implementation writes into `src/` until the
 contract file exists.
+
+**The front door is part of the design.** A module can have a clean seam, a correct
+dependency direction and no input validation anywhere — every gate green on code that
+returns `Content-Length: -49` to a browser for `Range: bytes=100-50`. Decide what each
+parameter refuses at the same time you decide what the interface accepts, because afterwards
+nobody asks the question again.
 
 ## Deep vs shallow
 

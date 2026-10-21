@@ -3,6 +3,43 @@
 Versions are `0.x`: the shape is still moving, so a minor bump may break a contract you
 already wrote. Each entry says which ones do.
 
+## Unreleased
+
+### Breaking
+
+- **Contracts now require a `Preconditions` section.** Every contract written against 0.6.0
+  or earlier stops validating until the section is added. That break is accepted rather than
+  versioned around: this is 0.x, the install base is small, and re-running the seeding
+  regenerates a contract in the new shape. (proposal 001)
+
+### Preconditions
+
+`Errors` asks what a function **raises**. It never asks what a function **refuses**, so
+filled in honestly it is a changelog of current behaviour rather than a specification. The
+new section asks the other question — one row per parameter, and one of exactly three
+verdicts:
+
+| Verdict | Means |
+| --- | --- |
+| `reject` | raise, naming the offending value |
+| `clamp` | substitute a safe value and log at WARNING |
+| `propagate` | documented precondition, deliberately unchecked |
+
+`No preconditions.` is a complete answer. `propagate` is legitimate — a function called per
+frame should not revalidate what its caller guarantees — and is also the verdict that will
+be abused, so `verdict_counts` makes the distribution countable the way the waiver ledger
+counts judgments.
+
+This came from outside: a session applying 0.5.0 to a real package put every gate green on
+code with no input validation anywhere. `Range: bytes=100-50` returned `Content-Length: -49`
+to a browser; a field of view of 180 degrees built a camera with a focal length of `5.9e-14`
+and drew every bearing without a word. The limit is structural — `detect_patterns.py`
+answers questions about shape, and "this function divides by a number the caller controls"
+is a question about the relationship between a parameter and what is done to it. The full
+proposal, with its measurements, is `docs/proposals/001-preconditions.md`.
+
+Step 1 only: the section and its validator. No Semgrep, no new engine, no generated guards.
+
 ## 0.6.0 — 2026-10-21
 
 The release where the plugin stopped choosing its own colours.

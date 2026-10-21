@@ -21,6 +21,7 @@ WAIVER_FILE: Final = "docs/contracts/_waivers.md"
 REQUIRED_SECTIONS: Final = (
     "Responsibility",
     "Interface",
+    "Preconditions",
     "Seam",
     "Dependencies",
     "Errors",
@@ -33,10 +34,25 @@ VALID_STATUS: Final = frozenset({"draft", "accepted", "superseded"})
 LOG_LEVELS: Final = ("debug", "info", "warning", "error")
 MIN_TEST_BEHAVIOURS: Final = 3
 
+#: What a module does when a parameter arrives outside its stated range. Exactly three
+#: answers, because the design question is which one - not whether to think about it.
+#:
+#: ``propagate`` is deliberately available. A function called per frame should not
+#: revalidate what its caller guarantees, and forcing a guard everywhere would teach authors
+#: to write one that does nothing. The point is that the choice is recorded.
+VALID_VERDICTS: Final = ("reject", "clamp", "propagate")
+
+NO_PRECONDITIONS: Final = "No preconditions."
+
 #: Placeholder text that means a section was templated and never filled.
 PLACEHOLDER: Final = re.compile(r"^(TODO|TBD|\.\.\.|<[^>]+>|\{\{[^}]+\}\})\s*$", re.MULTILINE)
 
 _HEADING: Final = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
+_PRECONDITION_ROW: Final = re.compile(
+    r"^\|\s*(?P<parameter>[^|]+?)\s*\|\s*(?P<must_satisfy>[^|]+?)\s*\|\s*(?P<verdict>[^|]+?)\s*\|\s*$",
+    re.MULTILINE,
+)
+_HEADER_CELL: Final = frozenset({"parameter", "param", "---", ":---", "---:", ":---:"})
 _WAIVER_ROW: Final = re.compile(
     r"^\|\s*(?P<path>[^|]+?)\s*\|\s*(?P<rule>\d+)\s*\|\s*(?P<date>[^|]*?)\s*\|\s*(?P<reason>[^|]+?)\s*\|\s*$",
     re.MULTILINE,
@@ -51,6 +67,15 @@ class Waiver:
     rule: int
     date: str
     reason: str
+
+
+@dataclass(frozen=True, slots=True)
+class Precondition:
+    """One parameter, what it must satisfy, and what happens when it does not."""
+
+    parameter: str
+    must_satisfy: str
+    verdict: str
 
 
 def contract_path_for(module_path: Path, src_root: str = "src") -> Path:
@@ -107,6 +132,67 @@ def _check_header_fields(text: str) -> list[str]:
     return []
 
 
+def _strip_markup(cell: str) -> str:
+    """A table cell as its words: backticks and bold are formatting, not content."""
+    return cell.replace("`", "").replace("**", "").strip()
+
+
+def parse_preconditions(text: str) -> list[Precondition]:
+    """Read the Preconditions table out of a contract.
+
+    Rows that do not parse are skipped rather than guessed at, the same rule the waiver
+    ledger follows. A verdict cell may carry prose after the verb - ``**reject** - ValueError
+    naming the value`` - so the verdict is the recognised word in it, not the whole cell.
+    """
+    body = _sections(text).get("preconditions", "")
+    found: list[Precondition] = []
+    for match in _PRECONDITION_ROW.finditer(body):
+        parameter = _strip_markup(match.group("parameter"))
+        if parameter.lower() in _HEADER_CELL or set(parameter) <= {"-", ":"}:
+            continue
+        cell = _strip_markup(match.group("verdict")).lower()
+        verdict = next((v for v in VALID_VERDICTS if v in cell), "")
+        found.append(
+            Precondition(
+                parameter=parameter,
+                must_satisfy=_strip_markup(match.group("must_satisfy")),
+                verdict=verdict,
+            )
+        )
+    return found
+
+
+def verdict_counts(preconditions: list[Precondition]) -> dict[str, int]:
+    """How many parameters got each answer.
+
+    A repository whose every row says ``propagate`` has turned the section into a formality,
+    which is the same signal the waiver ledger gives when one module keeps accumulating
+    judgments. Counting it is what makes that visible.
+    """
+    return {
+        verdict: sum(1 for p in preconditions if p.verdict == verdict) for verdict in VALID_VERDICTS
+    }
+
+
+def _check_preconditions(sections: dict[str, str]) -> list[str]:
+    """The section is a table of verdicts, or an explicit statement that there are none."""
+    body = sections.get("preconditions", "")
+    if not body or NO_PRECONDITIONS.lower() in body.lower():
+        return []
+    if "|" not in body:
+        return [f"## Preconditions needs a table, or the sentence '{NO_PRECONDITIONS}'"]
+
+    rows = parse_preconditions(f"## Preconditions\n{body}")
+    if not rows:
+        return [f"## Preconditions has a table with no rows; use '{NO_PRECONDITIONS}' instead"]
+    return [
+        f"## Preconditions row for {row.parameter!r} names no verdict; "
+        f"use one of {', '.join(VALID_VERDICTS)}"
+        for row in rows
+        if not row.verdict
+    ]
+
+
 def _check_section_content(sections: dict[str, str]) -> list[str]:
     """What each section must actually contain, beyond being non-empty."""
     errors: list[str] = []
@@ -143,6 +229,7 @@ def validate_contract(text: str) -> list[str]:
         *_check_sections_present(sections),
         *_check_header_fields(text),
         *_check_section_content(sections),
+        *_check_preconditions(sections),
     ]
 
     tests = sections.get("tests", "")

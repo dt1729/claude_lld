@@ -204,6 +204,12 @@ Square(side_m: float)
 
 side_m is metres and always > 0, so no caller revalidates it.
 
+## Preconditions
+
+| Parameter | Must satisfy | On violation |
+| --- | --- | --- |
+| side_m | > 0 | reject - InvalidSideError naming the value |
+
 ## Seam
 
 None. A value type over one number; nothing varies.

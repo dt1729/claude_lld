@@ -8,11 +8,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from contracts import (
+    NO_PRECONDITIONS,
     Waiver,
     contract_path_for,
     is_waived,
+    parse_preconditions,
     parse_waivers,
     validate_contract,
+    verdict_counts,
     waiver_count,
     waiver_row,
 )
@@ -32,6 +35,14 @@ def run(source: FrameSource, cfg: Settings) -> Iterator[Detection]
 ```
 
 Yields in frame order. Calibration is read once at first next().
+
+## Preconditions
+
+| Parameter | Must satisfy | On violation |
+| --- | --- | --- |
+| `source` | open, not already consumed | **reject** - `ValueError` |
+| `cfg.threshold` | `0.0 <= threshold <= 1.0` | **clamp** to the range, log at WARNING |
+| `cfg.device_id` | matches a calibrated device | **propagate** - the caller built it |
 
 ## Seam
 
@@ -227,3 +238,82 @@ def test_waiver_row_round_trips_through_the_parser() -> None:
     assert parse_waivers(f"{row}\n") == [
         Waiver("src/pkg/thing.py", 12, "2026-10-17", "closed set, enum lands next week")
     ]
+
+
+# --- preconditions ----------------------------------------------------------------------------
+#
+# The section exists because the Errors section asks what a function *raises* and never what
+# it *refuses*. Filled in honestly, Errors becomes a changelog of current behaviour; this
+# table is a specification, and the author has to pick one of three answers per parameter.
+
+
+def test_every_row_is_read_with_its_verdict() -> None:
+    rows = parse_preconditions(VALID)
+    assert [r.parameter for r in rows] == ["source", "cfg.threshold", "cfg.device_id"]
+    assert [r.verdict for r in rows] == ["reject", "clamp", "propagate"]
+
+
+def test_the_condition_survives_the_markup() -> None:
+    """Backticks are formatting; the claim is what a reader and a tool both need."""
+    assert parse_preconditions(VALID)[1].must_satisfy == "0.0 <= threshold <= 1.0"
+
+
+def test_the_header_and_separator_are_not_parameters() -> None:
+    assert not any(r.parameter.lower() == "parameter" for r in parse_preconditions(VALID))
+    assert not any(set(r.parameter) <= {"-", ":"} for r in parse_preconditions(VALID))
+
+
+def test_a_verdict_may_carry_prose_after_it() -> None:
+    """`**reject** - ValueError naming the value` is one verdict, not an unreadable cell."""
+    assert parse_preconditions(VALID)[0].verdict == "reject"
+
+
+def test_the_distribution_is_countable() -> None:
+    """An all-propagate repository has turned the section into a formality."""
+    assert verdict_counts(parse_preconditions(VALID)) == {
+        "reject": 1,
+        "clamp": 1,
+        "propagate": 1,
+    }
+
+
+def test_a_contract_with_no_preconditions_section_is_refused() -> None:
+    without = VALID.replace("## Preconditions", "## Something else")
+    assert "missing section: ## Preconditions" in validate_contract(without)
+
+
+def test_saying_there_are_none_is_a_complete_answer() -> None:
+    """A pure function usually has nothing to refuse. The claim must be explicit."""
+    body = f"## Preconditions\n\n{NO_PRECONDITIONS}\n\n## Seam"
+    none = VALID[: VALID.index("## Preconditions")] + body + VALID[VALID.index("## Seam") + 8 :]
+    assert validate_contract(none) == []
+
+
+def test_prose_instead_of_a_table_is_refused() -> None:
+    """Prose cannot be read back by the scaffolder or the gate, so it is not an answer."""
+    vague = _replace_preconditions("Callers should pass sensible values.")
+    assert any("needs a table" in e for e in validate_contract(vague))
+
+
+def test_a_row_naming_no_verdict_is_refused() -> None:
+    """The design decision is which of the three, so leaving it out is the failure."""
+    missing = _replace_preconditions(
+        "| Parameter | Must satisfy | On violation |\n"
+        "| --- | --- | --- |\n"
+        "| `hfov_deg` | `0 < hfov_deg < 180` | raises sometimes |\n"
+    )
+    errors = validate_contract(missing)
+    assert any("'hfov_deg' names no verdict" in e for e in errors)
+    assert any("reject, clamp, propagate" in e for e in errors)
+
+
+def test_an_empty_table_is_refused_in_favour_of_saying_so() -> None:
+    headings = "| Parameter | Must satisfy | On violation |\n| --- | --- | --- |\n"
+    assert any("no rows" in e for e in validate_contract(_replace_preconditions(headings)))
+
+
+def _replace_preconditions(body: str) -> str:
+    """VALID with a different Preconditions body, everything else untouched."""
+    start = VALID.index("## Preconditions")
+    end = VALID.index("## Seam")
+    return VALID[:start] + f"## Preconditions\n\n{body}\n\n" + VALID[end:]

@@ -31,6 +31,14 @@ def run(source: FrameSource, cfg: Settings) -> Iterator[Detection]
 - Calibration is read once at first `next()`, not per frame.
 - Latency is dominated by the detector; this module adds no buffering.
 
+## Preconditions
+
+| Parameter | Must satisfy | On violation |
+| --- | --- | --- |
+| `source` | open, not already consumed | **reject** - `ValueError` naming the source |
+| `cfg.threshold` | `0.0 <= threshold <= 1.0` | **clamp** to the range, log at WARNING |
+| `cfg.device_id` | matches a calibrated device | **propagate** - the caller built it |
+
 ## Seam
 
 `FrameSource` is the seam: the variation is file-vs-camera, and both exist today
@@ -105,6 +113,7 @@ each block says on its own face.
 | --- | --- | --- |
 | `Responsibility` | one sentence | contains " and " joining two capabilities |
 | `Interface` | at least one signature in a code block | empty, or prose with no signature |
+| `Preconditions` | a verdict per parameter, or `No preconditions.` | a row naming no verdict |
 | `Seam` | what varies, or an explicit statement that nothing does | empty |
 | `Dependencies` | a `May import` line | missing the line |
 | `Errors` | a table, or the sentence `No error modes.` | empty |
@@ -113,6 +122,38 @@ each block says on its own face.
 | `Deletion test` | what reappears in callers | empty |
 
 `Status` is `draft`, `accepted` or `superseded`.
+
+## Writing the Preconditions section
+
+`Errors` asks what a function **raises**. It never asks what a function **refuses**, and
+filled in honestly it becomes a changelog of current behaviour rather than a specification.
+This table asks the other question, one row per parameter, and the answer is one of exactly
+three words:
+
+| Verdict | Means | Costs |
+| --- | --- | --- |
+| `reject` | raise, naming the offending value | a guard in the body, and a test |
+| `clamp` | substitute a safe value and log at WARNING | silent correction, so the log line matters |
+| `propagate` | documented precondition, deliberately unchecked | the caller carries it |
+
+**`propagate` is legitimate.** A function called per frame should not revalidate what its
+caller guarantees, and a guard written only to satisfy a rule is worse than none. What the
+table forbids is leaving the question unanswered.
+
+It is also the verdict that will be abused. A module whose every row says `propagate` has
+turned the section into a formality, the same way a module accumulating waivers is telling
+you about the module rather than the rules.
+
+`No preconditions.` is a complete answer for a function that takes nothing a caller can get
+wrong. Make the claim explicitly, so "designed to accept anything" is distinguishable from
+"nobody thought about it" - the same reason `No logging.` exists.
+
+### Why this is not covered by the type annotations
+
+A type says `float`. It does not say `0 < hfov_deg < 180`, and the gap between those two is
+where the failures live: a field of view of 180 degrees builds a camera with a focal length
+of `5.9e-14` and produces a garbage bearing for every frame, with no error raised. The
+annotation is necessary and not sufficient.
 
 ## Writing the Observability section
 

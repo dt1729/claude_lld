@@ -23,7 +23,7 @@ Default to private. Promote to a root module when a second package genuinely nee
 ## 2. Write the contract
 
 Create `docs/contracts/<dotted.path>.md` from
-[CONTRACT-FORMAT.md](CONTRACT-FORMAT.md) and fill every section. Three of them do the real
+[CONTRACT-FORMAT.md](CONTRACT-FORMAT.md) and fill every section. Four of them do the real
 work:
 
 - **Responsibility** — one sentence. If it needs "and", stop and split into two modules.
@@ -31,6 +31,11 @@ work:
 - **Seam** — what varies, and what you rejected. Reach for
   [codebase-design/DESIGN-IT-TWICE.md](../codebase-design/DESIGN-IT-TWICE.md) when the module
   is a package entry point or more than one caller already exists.
+- **Preconditions** — one row per parameter: what it must satisfy, and whether a violation
+  is `reject`, `clamp` or `propagate`. The type says `float`, not `0 < hfov_deg < 180`, and
+  that gap is where the silent wrong answers live. `propagate` is legitimate and is also the
+  one that gets abused; `No preconditions.` is a complete answer when nothing can be got
+  wrong.
 - **Deletion test** — what reappears in callers if this module vanishes. If the answer is
   "nothing", do not create it.
 - **Observability** — what this module logs, at which level, and what it must never log.
