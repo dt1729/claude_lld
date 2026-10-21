@@ -9,7 +9,7 @@
     {
       "name": "lld-seed",
       "source": "./",
-      "description": "Forces low-level design before implementation in Python repos."
+      "description": "Forces low-level design before implementation in Python repos: a contract gate, 38 AST-checked rules, test obligations and diagrams derived from your source."
     }
   ]
 }

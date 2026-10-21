@@ -11,7 +11,7 @@
   <img alt="Python 3.12+" src="https://img.shields.io/badge/python-3.12%2B-blue.svg">
   <img alt="Runtime dependencies: none" src="https://img.shields.io/badge/runtime%20deps-stdlib%20only-brightgreen.svg">
   <img alt="Tests: 137 passing" src="https://img.shields.io/badge/tests-254%20passing-brightgreen.svg">
-  <img alt="Status: v0.1.0" src="https://img.shields.io/badge/status-v0.1.0-orange.svg">
+  <img alt="Status: v0.5.0" src="https://img.shields.io/badge/status-v0.5.0-orange.svg">
 </p>
 
 <p align="center">
@@ -75,7 +75,7 @@ See `SCOPE.md` for the division of labour.
 
 ## Status
 
-v0.1.0. Built and validated against real code.
+v0.5.0 — see [CHANGELOG.md](CHANGELOG.md). Built and validated against real code.
 
 - 254 tests, `ruff` + `mypy --strict` + `pre-commit` green, plugin validates.
 - Calibrated against a repository it did not write (`docs/incidents.md`, incident 001).
