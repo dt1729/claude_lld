@@ -5,6 +5,11 @@ argument-hint: "<package path>"
 
 Draw four views of `$1` from its syntax tree, as SVG beside the contracts.
 
+**Requires the `dataviz` skill.** Load it before drawing. Every colour in the output is a
+role from `dataviz/references/palette.md` and none is chosen here; the script exits non-zero
+with the install instruction if the skill is absent, because a figure whose palette nothing
+validated is the thing this plugin exists to refuse.
+
 ```
 python "${CLAUDE_PLUGIN_ROOT}/scripts/diagrams.py" $1 --out docs/diagrams
 python "${CLAUDE_PLUGIN_ROOT}/scripts/diagrams.py" $1 --check   # fail if stale

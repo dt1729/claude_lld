@@ -17,6 +17,29 @@ and tangled imports are symptoms. The missing design step is the cause.
    contract is checked against its code; a folder file is not, so one that repeats a
    contract is an unchecked second copy. See incident 008.
 
+## Prerequisite: the `dataviz` skill
+
+**`lld-seed` requires the `dataviz` skill that Claude Code ships. Without it the plugin does
+not work.** It is a dependency in the same sense as Python 3.12, not a suggestion.
+
+This plugin designs nothing of its own. Every figure it draws takes its palette, its
+surfaces and its type from `dataviz`, and three rules follow from that:
+
+- **No colour is chosen in this repo.** `scripts/diagrams.py` declares roles - page plane,
+  chart surface, primary and secondary ink, muted, baseline, categorical slot 1, status
+  critical - and every value comes from `dataviz/references/palette.md`. A literal hex that
+  is not a role from that file fails `scripts/tests/test_palette.py`.
+- **No palette ships unvalidated.** `dataviz/scripts/validate_palette.py` decides whether a
+  palette is safe. Nobody here reasons about delta E and nobody eyeballs it.
+- **The diagram commands refuse to run without it.** `/lld-seed:diagram` fails with the
+  install instruction rather than draw a figure whose colours nothing checked.
+
+Colour in these diagrams carries meaning: blue is a type, red is an error. That makes the
+palette an accessibility decision, and this plugin's first rule is that a decision a tool can
+make is never made by hand. The one time it was made by hand here, red and green sat 1.3
+apart under simulated deuteranopia - one colour, to the readers the distinction was for.
+See incident 010.
+
 ## Division of labour
 
 | Concern | Owner |
@@ -29,6 +52,7 @@ and tangled imports are symptoms. The missing design step is the cause.
 | `print` in a package, eager log formatting, swallowed exceptions | ruff + the gate |
 | Which level an event deserves, what a line must carry, what is never logged | **the markdown** |
 | Where a seam goes, what an abstraction is for, when to split | **the markdown** |
+| Diagram palette, surfaces, type, contrast, colourblind separation | **the `dataviz` skill** |
 
 A rule belongs in markdown only if no tool can decide it. Every rule a tool owns is listed
 once, in the tool's config, and referenced from the prose by name.
@@ -36,6 +60,8 @@ once, in the tool's config, and referenced from the prose by name.
 ## Non-goals
 
 - Replacing a linter with prose.
+- Designing a visual language. `dataviz` owns colour and type; this plugin owns only what
+  the syntax tree says.
 - Teaching Python syntax, or anything the model already does by default.
 - Supporting languages other than Python in v0.x. The vocabulary is language-neutral; the
   enforcement is not.

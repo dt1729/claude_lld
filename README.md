@@ -29,6 +29,18 @@
 /plugin install lld-seed@dt1729
 ```
 
+### Requirements
+
+| | |
+| --- | --- |
+| Python | 3.12+ |
+| Claude Code | 2.1.268+ |
+| **The `dataviz` skill** | **required** - ships with Claude Code |
+
+`dataviz` is not optional. Every diagram takes its palette, surfaces and type from that
+skill, and `/lld-seed:diagram` refuses to draw without it rather than ship colours nothing
+validated. See `SCOPE.md`.
+
 Design and the gate work immediately; there is nothing to generate first.
 
 `/lld-seed:scaffold-guidance <path>` writes folder guidance, but only where an agent needs

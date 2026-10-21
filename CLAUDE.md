@@ -27,6 +27,10 @@ The vocabulary is not negotiable mid-sentence: use module, interface, depth, sea
   reserved and fail validation. The repo name and the plugin name differ on purpose.
 - **Guidance reaches the model only through skills.** A `CLAUDE.md` at a plugin root is not
   loaded as context when the plugin is installed. This file exists for working *on* the repo.
+- **`dataviz` owns every visual decision. Never pick a colour, a surface or a typeface
+  here.** The skill ships with Claude Code; read `references/palette.md` for the role you
+  need and run `scripts/validate_palette.py` before shipping any palette. Reasoning about
+  delta E by hand is the failure, not the fallback - incident 010 is what it costs.
 - **Write no rule a tool can enforce.** Before adding prose, check whether ruff, mypy or
   import-linter can decide it. If they can, configure it there and name the code instead.
 - **Eliminate no-ops.** Never write an instruction the model already follows by default; it
