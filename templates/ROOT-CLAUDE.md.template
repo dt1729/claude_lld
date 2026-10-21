@@ -18,7 +18,9 @@
 3. **Every public behaviour has a test through the interface.** Not past it.
 4. **Construction happens at the entry point.** Modules accept dependencies, never build them.
    Libraries emit log records; only the application configures logging.
-5. **Gates are not advisory.** `ruff`, `mypy --strict`, `import-linter` and `pytest` pass
+5. **One reason to change per commit**, and the body says why, not what. The diff already
+   says what. See the `commits` skill.
+6. **Gates are not advisory.** `ruff`, `mypy --strict`, `import-linter` and `pytest` pass
    before a commit. Fix the code, not the config.
 
 ## Where the rules live
@@ -29,6 +31,7 @@ Design vocabulary and conventions ship in the `lld-seed` plugin and load on dema
 - `python-style` — naming, readability, module boundaries, extension points
 - `logging` — levels chosen by who must act, what every line carries, what is never logged
 - `new-module` — scaffolds a contract, then the module, then its guidance
+- `commits` — what one commit contains, and what its message owes a reader
 - `/lld-seed:scaffold-guidance` — folder guidance, where an agent needs orienting
 
 Do not copy rule text into this file or any folder `CLAUDE.md`. Duplicated rules drift, and

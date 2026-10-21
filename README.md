@@ -61,6 +61,7 @@ follow from that. This plugin supplies the missing step and refuses to let it be
 | Design | `codebase-design` skill — deep modules, the deletion test, design it twice |
 | Conventions | `python-style` skill — four reference files of judgment-only rules |
 | Observability | `logging` skill — levels by who must act, library-versus-application split |
+| Commits | `commits` skill — one reason per commit; the body says why, and what was rejected |
 | Tests | `test-design` skill + 9 AST-checked test rules — a test must be able to fail |
 | Test generation | `/lld-seed:scaffold-tests` — obligations read off the source AST, as failing stubs and a sandbox |
 | Contract drift | Rules 37 and 38 — the contract's factual half is generated from the code, and checked |
