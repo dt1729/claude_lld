@@ -80,6 +80,25 @@ Deleting this module pushes frame ordering, calibration caching and threshold fi
 `cli` and `benchmark` separately — two copies that would drift. It earns its keep.
 ```
 
+## Derived and declared
+
+Three sections are **generated from the code** and sit inside `<!-- derived -->` markers:
+`Interface`, `Dependencies` and `Errors`. Do not edit inside the markers - the next run
+overwrites them. Regenerate with:
+
+```
+/lld-seed:derive <module>
+```
+
+Everything outside the markers is yours and is never touched: what the seam is for, what you
+rejected, what each error means to a caller, the deletion test. A derived block lists the
+exception types a module raises; the sentence saying *when* and *what a caller should do*
+goes in your prose beneath it, because no parser knows that.
+
+The gate checks that the derived half is current, so a contract can be stale but not wrong.
+What the syntax tree cannot see - a dynamic import, a re-export, a raise inside a helper -
+each block says on its own face.
+
 ## Required sections
 
 | Heading | Must contain | Rejected if |

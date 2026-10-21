@@ -39,6 +39,7 @@ from contracts import (
     waiver_count,
     waiver_row,
 )
+from derive import facts_for, import_graph, stale
 from detect_patterns import detect
 from findings import BLOCK, JUDGE, Finding
 from logsetup import configure, log_path
@@ -205,11 +206,38 @@ def _evaluate_test(
     return _deny("\n".join(lines))
 
 
-def _all_findings(source: str, module: Path, src_root: str, contract_text: str) -> list[Finding]:
-    """Structure plus contract conformance. The contract is a promise; rule 37 checks it."""
+def _derived_findings(
+    source: str, module: Path, src_root: str, contract_text: str, project_dir: Path
+) -> list[Finding]:
+    """Whether the contract's generated half still matches the code.
+
+    Only contracts that already carry derived blocks are checked. A contract without them has
+    not adopted the mechanism, which is a migration state rather than a defect, and rule 37
+    still covers what the author declared by hand.
+    """
+    root = project_dir / src_root
+    parts = module.as_posix().split("/")
+    if not root.is_dir() or src_root not in parts:
+        return []
+    package_root = parts[parts.index(src_root) + 1]
+    graph = import_graph(root, package_root)
+    facts = facts_for(source, module, graph, src_root)
+    return [f for f in stale(contract_text, facts) if "no derived block" not in f.message]
+
+
+def _all_findings(
+    source: str, module: Path, src_root: str, contract_text: str, project_dir: Path
+) -> list[Finding]:
+    """Structure, what the contract declares, and whether its generated half is current.
+
+    Rule 37 compares what the author wrote; rule 38 asks whether what the tool wrote is
+    still true. Together a contract can be stale but not wrong, and stale is one command.
+    """
     findings = detect(source, module, src_root)
-    if contract_text:
-        findings += conformance(contract_text, source)
+    if not contract_text:
+        return findings
+    findings += conformance(contract_text, source)
+    findings += _derived_findings(source, module, src_root, contract_text, project_dir)
     return findings
 
 
@@ -267,7 +295,7 @@ def evaluate(payload: dict[str, Any], project_dir: Path, src_root: str = "src") 
         return _deny(_missing_contract_message(module, contract_path_for(module, src_root), errors))
 
     try:
-        findings = _all_findings(source, module, src_root, contract_text)
+        findings = _all_findings(source, module, src_root, contract_text, project_dir)
     except SyntaxError as exc:
         log.info("allow %s: content does not parse (%s)", module.as_posix(), exc.msg)
         return _allow()

@@ -10,7 +10,7 @@
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg">
   <img alt="Python 3.12+" src="https://img.shields.io/badge/python-3.12%2B-blue.svg">
   <img alt="Runtime dependencies: none" src="https://img.shields.io/badge/runtime%20deps-stdlib%20only-brightgreen.svg">
-  <img alt="Tests: 137 passing" src="https://img.shields.io/badge/tests-221%20passing-brightgreen.svg">
+  <img alt="Tests: 137 passing" src="https://img.shields.io/badge/tests-237%20passing-brightgreen.svg">
   <img alt="Status: v0.1.0" src="https://img.shields.io/badge/status-v0.1.0-orange.svg">
 </p>
 
@@ -63,7 +63,7 @@ follow from that. This plugin supplies the missing step and refuses to let it be
 | Observability | `logging` skill — levels by who must act, library-versus-application split |
 | Tests | `test-design` skill + 9 AST-checked test rules — a test must be able to fail |
 | Test generation | `/lld-seed:scaffold-tests` — obligations read off the source AST, as failing stubs and a sandbox |
-| Contract drift | Rule 37 — the module is checked against the interface its contract promises |
+| Contract drift | Rules 37 and 38 — the contract's factual half is generated from the code, and checked |
 | Gate | `PreToolUse` hook — no implementation in `src/` without a contract |
 | Enforcement | ruff, mypy `--strict`, import-linter, pytest, pre-commit |
 | Folder guidance | `/lld-seed:scaffold-guidance` — only where an agent needs orienting, never a sweep |
@@ -75,7 +75,7 @@ See `SCOPE.md` for the division of labour.
 
 v0.1.0. Built and validated against real code.
 
-- 221 tests, `ruff` + `mypy --strict` + `pre-commit` green, plugin validates.
+- 237 tests, `ruff` + `mypy --strict` + `pre-commit` green, plugin validates.
 - Calibrated against a repository it did not write (`docs/incidents.md`, incident 001).
 - One module built end to end through the flow, then reviewed against every rule:
   `docs/phase-4-review.md`. It passes every gate and has six semantic defects, which is the

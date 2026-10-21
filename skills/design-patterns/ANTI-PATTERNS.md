@@ -47,6 +47,7 @@ mechanically and handed to the model with the evidence, because the shape alone 
 | 35 | Obligation from the source with nothing in the suite covering it | AST |
 | 36 | Test name joining two things with "and" | AST->judge |
 | 37 | Contract and module disagree about the interface | AST |
+| 38 | A derived block no longer matches the code | AST |
 
 Rules 27 to 36 are decided by `scripts/detect_tests.py`, which reads the test files the
 structure detector excludes. Rule 34 (one test covering several behaviours) was specified,
@@ -407,3 +408,24 @@ edit the contract first - that is the step the whole flow exists to protect.
 The structural half of this is what function-calling evaluations call AST evaluation:
 compare a declaration against a schema without running anything. The executable half, which
 catches what structure cannot, is the sandbox from `scaffold_tests.py`.
+
+## 38. A derived block no longer matches the code
+
+Three contract sections are generated from the module: `Interface`, `Dependencies` and
+`Errors`. They sit inside `<!-- derived -->` markers and nobody types them. A block that no
+longer matches means the code moved and the contract has not caught up.
+
+This is the rule that makes drift structurally impossible rather than merely detectable. A
+hand-written fact can be **wrong**; a generated one can only be **stale**, and stale is one
+command. The same reasoning as a formatter: nobody writes a lint rule for indentation,
+because the tool makes it true and `--check` fails the build when it is not.
+
+**Detect:** regenerate each block from the current source and compare. Any difference is a
+block.
+**Not reported:** a contract with no derived blocks at all. That is a migration state, not a
+defect, and rule 37 still covers what the author declared by hand.
+**Fix:** `/lld-seed:derive <module>`.
+
+What the syntax tree cannot see - a dynamic import, a re-export, a `raise` inside a helper -
+each block states on its own face. A fact the parser cannot reach belongs in the author's
+prose beneath the block, which is what the declared half is for.
