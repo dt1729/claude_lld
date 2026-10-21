@@ -29,11 +29,12 @@ Design vocabulary and conventions ship in the `lld-seed` plugin and load on dema
 - `python-style` — naming, readability, module boundaries, extension points
 - `logging` — levels chosen by who must act, what every line carries, what is never logged
 - `new-module` — scaffolds a contract, then the module, then its guidance
-- `/lld-seed:scaffold-guidance` — regenerates per-folder `CLAUDE.md` files
+- `/lld-seed:scaffold-guidance` — folder guidance, where an agent needs orienting
 
 Do not copy rule text into this file or any folder `CLAUDE.md`. Duplicated rules drift, and
-both copies stop being trusted. Folder files carry only what is local: purpose, public
-interface, allowed dependencies, invariants.
+both copies stop being trusted. A module's contract is the documentation for that module and
+is checked against the code; a folder file is for what a contract cannot say, and most
+folders do not need one.
 
 <!-- manual -->
 ## Project-specific notes

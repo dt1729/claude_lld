@@ -30,11 +30,7 @@ REQUIRED_SECTIONS: Final = (
 )
 
 VALID_STATUS: Final = frozenset({"draft", "accepted", "superseded"})
-VALID_DEPTH: Final = frozenset({"junior", "senior", "principal"})
 LOG_LEVELS: Final = ("debug", "info", "warning", "error")
-
-#: Above this, a module is too wide for its author to call the work junior.
-MAX_JUNIOR_PUBLIC_NAMES: Final = 2
 MIN_TEST_BEHAVIOURS: Final = 3
 
 #: Placeholder text that means a section was templated and never filled.
@@ -96,27 +92,19 @@ def _check_sections_present(sections: dict[str, str]) -> list[str]:
     return errors
 
 
-def _check_header_fields(text: str, public_names: int) -> list[str]:
-    """Status and Depth, including the cross-check that keeps a wide module off junior."""
-    errors: list[str] = []
+def _check_header_fields(text: str) -> list[str]:
+    """The header fields a contract must carry.
 
+    Depth (junior/senior/principal) used to live here. It came from a model-tier budget and
+    said nothing about the module, so it was a label an author assigned to their own work
+    and nobody could check. Removed rather than kept as decoration.
+    """
     status = _field(text, "Status")
     if status is None:
-        errors.append("missing **Status:** line")
-    elif status not in VALID_STATUS:
-        errors.append(f"Status must be one of {sorted(VALID_STATUS)}, got {status!r}")
-
-    depth = _field(text, "Depth")
-    if depth is None:
-        errors.append("missing **Depth:** line")
-    elif depth not in VALID_DEPTH:
-        errors.append(f"Depth must be one of {sorted(VALID_DEPTH)}, got {depth!r}")
-    elif depth == "junior" and public_names > MAX_JUNIOR_PUBLIC_NAMES:
-        errors.append(
-            f"Depth junior is not available to a module with {public_names} public names; "
-            "use senior or principal"
-        )
-    return errors
+        return ["missing **Status:** line"]
+    if status not in VALID_STATUS:
+        return [f"Status must be one of {sorted(VALID_STATUS)}, got {status!r}"]
+    return []
 
 
 def _check_section_content(sections: dict[str, str]) -> list[str]:
@@ -148,17 +136,12 @@ def _check_section_content(sections: dict[str, str]) -> list[str]:
     return errors
 
 
-def validate_contract(text: str, *, public_names: int = 0) -> list[str]:
-    """Return the reasons this contract is unusable. Empty means it validates.
-
-    ``public_names`` cross-checks the declared depth: a module with a wide public surface
-    cannot be declared junior, which is the loophole a self-assessed depth would otherwise
-    leave open.
-    """
+def validate_contract(text: str) -> list[str]:
+    """Return the reasons this contract is unusable. Empty means it validates."""
     sections = _sections(text)
     errors = [
         *_check_sections_present(sections),
-        *_check_header_fields(text, public_names),
+        *_check_header_fields(text),
         *_check_section_content(sections),
     ]
 

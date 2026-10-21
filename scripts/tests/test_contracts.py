@@ -20,7 +20,6 @@ from contracts import (
 VALID = """# Contract: detection.pipeline
 
 **Status:** accepted
-**Depth:** senior
 
 ## Responsibility
 
@@ -155,17 +154,6 @@ def test_unknown_status_is_reported() -> None:
         "Status" in e
         for e in validate_contract(VALID.replace("**Status:** accepted", "**Status:** wip"))
     )
-
-
-def test_junior_depth_is_refused_for_a_wide_module() -> None:
-    """The loophole a self-assessed depth would leave open."""
-    text = VALID.replace("**Depth:** senior", "**Depth:** junior")
-    assert any("junior" in e for e in validate_contract(text, public_names=5))
-
-
-def test_junior_depth_is_allowed_for_a_narrow_module() -> None:
-    text = VALID.replace("**Depth:** senior", "**Depth:** junior")
-    assert validate_contract(text, public_names=1) == []
 
 
 def test_missing_observability_section_is_reported() -> None:

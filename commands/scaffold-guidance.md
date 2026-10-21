@@ -1,26 +1,41 @@
 ---
-description: Generate or refresh per-folder CLAUDE.md guidance, idempotently
-argument-hint: "[path] (default: whole repo)"
+description: Write folder guidance where an agent needs it, never by default
+argument-hint: "[path]"
 ---
 
-Generate or refresh per-folder `CLAUDE.md` guidance for `$1` (default: the whole repository).
+Generate or refresh folder guidance for `$1`.
 
-Each generated file carries **only what is local to that folder**. Rules live in the plugin
-skills and are never copied into a folder file: duplicated rules drift, and once two copies
-disagree neither is trusted.
+A folder `CLAUDE.md` is **not** part of designing a library. It is orientation for an agent
+working in a folder, and it earns its place only where an agent would otherwise guess. In a
+greenfield library the contracts already carry responsibility, interface, dependencies and
+invariants per module, and a folder file repeating any of that is a second copy that drifts.
+
+## 0. Decide whether this folder needs one at all
+
+Write one only when **both** hold:
+
+- an agent will work in this folder, and
+- there is something local it cannot read off the code or the module's contract: a
+  convention that spans the folder, a hazard in the surrounding system, a reason the
+  obvious change is wrong.
+
+Skip it when the folder is a library package whose modules have contracts. The contracts
+are the documentation; a folder file beside them is duplication with a drift risk, and
+incident 008 is what drift costs.
+
+**Never sweep the whole repo by default.** With no argument, list the folders that qualify
+and ask which to write. A folder file nobody reads is a maintenance burden with the
+authority of documentation.
 
 ## 1. Choose the folders
 
-Walk the tree from the target path. A folder qualifies when it holds at least two `.py`
-files, or holds one and has subpackages.
+Walk the tree from the target path. A folder qualifies for *consideration* when it holds at
+least two `.py` files, or holds one and has subpackages - then apply the test in step 0.
 
 Skip entirely: `.git`, `.venv`, `venv`, `node_modules`, `__pycache__`, `.mypy_cache`,
 `.ruff_cache`, `.pytest_cache`, `build`, `dist`, `*.egg-info`, `migrations`, and any folder
 whose name starts with `_generated`. Skip `tests/` folders: their guidance is the contract of
 the package they test.
-
-If the walk finds more than 25 qualifying folders, list them and ask which to generate before
-writing anything. A sweep that writes 60 files nobody reads is worse than none.
 
 ## 2. Read before writing
 
@@ -40,8 +55,8 @@ Use `templates/FOLDER-CLAUDE.md.template` from the plugin. Fill every placeholde
 
 - **Responsibility** — one sentence. If it needs "and", say so explicitly in the file: the
   folder is two packages and that is worth recording.
-- **Public interface** — the root modules and what each exposes. Not an export list; say what
-  a caller gets.
+- **Public interface** — name the root modules and point at their contracts. Do not restate
+  what a contract already says; the contract is checked against the code and this file is not.
 - **May import / Imported by** — from the imports you read, not from what you would prefer.
   Where the real dependencies violate the entry-point boundary, record the violation rather
   than the ideal, and flag it.

@@ -13,8 +13,9 @@ and tangled imports are symptoms. The missing design step is the cause.
 2. **Gates implementation on a written contract** via a blocking `PreToolUse` hook.
 3. **Installs real enforcement** (ruff, mypy, import-linter, pytest, pre-commit) so the prose
    never repeats what a tool can check.
-4. **Generates per-folder guidance** recursively, so each package carries only its own
-   purpose, interface, allowed dependencies and invariants.
+4. **Writes folder guidance where an agent needs orienting** - not everywhere. A module's
+   contract is checked against its code; a folder file is not, so one that repeats a
+   contract is an unchecked second copy. See incident 008.
 
 ## Division of labour
 

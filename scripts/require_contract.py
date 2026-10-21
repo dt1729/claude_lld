@@ -16,7 +16,6 @@ than silent, which is the point: a gate nobody can see being bypassed is worse t
 
 from __future__ import annotations
 
-import ast
 import json
 import logging
 import os
@@ -122,20 +121,6 @@ def resulting_source(tool: str, tool_input: dict[str, Any], current: str) -> str
     """The file content this call would produce, or None when it cannot be determined."""
     applier = APPLIERS.get(tool)
     return applier(tool_input, current) if applier else None
-
-
-def count_public_names(source: str) -> int:
-    """Top-level names a caller can reach, used to cross-check a declared depth."""
-    try:
-        tree = ast.parse(source)
-    except SyntaxError:
-        return 0
-    return sum(
-        1
-        for node in tree.body
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
-        and not node.name.startswith("_")
-    )
 
 
 def _missing_contract_message(module: Path, contract: Path, errors: list[str]) -> str:
@@ -264,13 +249,11 @@ def evaluate(payload: dict[str, Any], project_dir: Path, src_root: str = "src") 
 
     contract = project_dir / contract_path_for(module, src_root)
     contract_text = contract.read_text(encoding="utf-8") if contract.exists() else ""
-    public_names = count_public_names(source)
-    errors = validate_contract(contract_text, public_names=public_names) if contract_text else []
+    errors = validate_contract(contract_text) if contract_text else []
     log.debug(
-        "contract %s: %s, %d public names, %d validation errors",
+        "contract %s: %s, %d validation errors",
         contract_path_for(module, src_root).as_posix(),
         "present" if contract_text else "absent",
-        public_names,
         len(errors),
     )
 

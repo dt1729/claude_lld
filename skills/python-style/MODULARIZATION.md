@@ -70,10 +70,12 @@ def get_model(cfg: Settings) -> Model:
 MODEL = _load(os.environ["MODEL_PATH"])  # fails at import, in every test session
 ```
 
-## Declare a module's allowed imports where the module lives
+## Declare a module's allowed imports in its contract
 
 An allowance recorded next to the code is read by whoever edits it; one recorded centrally is
-read by nobody. The per-folder `CLAUDE.md` carries this list, and import-linter enforces it.
+read by nobody. The module's contract carries the list in its Dependencies section, and
+import-linter enforces it. Keep it there rather than in a folder file: the contract is
+checked against the code and a folder file is not.
 
 ## Apply the deletion test before adding a module
 

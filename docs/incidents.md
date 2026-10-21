@@ -269,3 +269,34 @@ repo-wide sweep. The per-file check and the sweep answer different questions.
 **Caveat on provenance.** These are agents' findings about someone else's code, read here
 from the run transcripts rather than re-derived. The two quoted above carry line-level
 verification from the refutation pass; the rest are summaries and should be treated as leads.
+
+---
+
+## 009 — Two rules that came from somewhere else and never belonged
+
+**Date:** 2026-10-21
+**Found by:** the user, reviewing the contract format and the folder-guidance default
+
+**Depth was a borrowed field that measured nothing.** Contracts carried
+`Depth: junior | senior | principal`, lifted from pixibot's `budget.depth`. There it selects
+a model tier - a property of who does the work. In a contract it described nothing about the
+module, so it was a label an author applied to their own effort that no one could check. The
+cross-check built to police it (a module with more than two public names cannot be junior)
+existed only because the field did. Field, validation, cross-check and the
+`count_public_names` helper that fed it are all removed.
+
+**Folder guidance was the default when it should have been the exception.** The generator
+swept a whole repository and `new-module` step 5 told every module to run it. For a library
+that is wrong, and incident 008 says why: a module's contract is checked against its code and
+a folder `CLAUDE.md` is not, so a folder file repeating a contract is an unchecked second
+copy - the drift the pixibot audit found in ten contracts.
+
+A folder file now needs two conditions: an agent will work in that folder, and there is
+something local it cannot read off the code or the contract. The command no longer sweeps by
+default; with no argument it lists what qualifies and asks. Allowed imports moved from the
+folder file to the contract's Dependencies section, where rule 37's successor can check them.
+
+**The pattern worth noticing.** Both rules arrived by analogy - one from a neighbouring
+system's vocabulary, one from the assumption that more documentation is better - and neither
+came from an observed failure. That is the category this log exists to catch, and it took an
+outside reader to catch them.

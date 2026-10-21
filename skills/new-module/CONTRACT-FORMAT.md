@@ -15,7 +15,6 @@ rather than prose.
 # Contract: detection.pipeline
 
 **Status:** draft
-**Depth:** senior
 
 ## Responsibility
 
@@ -94,9 +93,7 @@ Deleting this module pushes frame ordering, calibration caching and threshold fi
 | `Tests` | at least three bullets, at least one a failure case | fewer than three |
 | `Deletion test` | what reappears in callers | empty |
 
-`Status` is `draft`, `accepted` or `superseded`. `Depth` is `junior`, `senior` or
-`principal`, and the gate cross-checks it: a module with more than two public names cannot
-be `junior`.
+`Status` is `draft`, `accepted` or `superseded`.
 
 ## Writing the Observability section
 

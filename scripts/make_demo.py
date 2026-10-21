@@ -189,7 +189,6 @@ class Square:
 CONTRACT: Final = """# Contract: shapes.square
 
 **Status:** accepted
-**Depth:** junior
 
 ## Responsibility
 

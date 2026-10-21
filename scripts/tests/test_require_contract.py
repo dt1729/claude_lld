@@ -10,7 +10,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from require_contract import count_public_names, evaluate, in_scope, resulting_source
+from require_contract import evaluate, in_scope, resulting_source
 from test_contracts import VALID as VALID_CONTRACT
 
 CLEAN_MODULE = '''"""Turn raw frames into scored detections."""
@@ -235,28 +235,6 @@ def test_unparseable_result_is_allowed_rather_than_guessed_at(project: Path) -> 
         decision(evaluate(write_payload(project, "src/pkg/thing.py", "def broken(:\n"), project))
         == "allow"
     )
-
-
-# --- depth cross-check ------------------------------------------------------------------
-
-
-def test_public_names_are_counted_for_the_depth_check() -> None:
-    src = "def a() -> None: ...\ndef _b() -> None: ...\nclass C: ...\n"
-    assert count_public_names(src) == 2
-
-
-def test_unparseable_source_counts_no_public_names() -> None:
-    assert count_public_names("def broken(:") == 0
-
-
-def test_junior_contract_is_refused_for_a_wide_new_module(project: Path) -> None:
-    add_contract(
-        project, "pkg.thing.md", VALID_CONTRACT.replace("**Depth:** senior", "**Depth:** junior")
-    )
-    wide = "".join(f"def f{i}() -> None:\n    pass\n\n\n" for i in range(4))
-    result = evaluate(write_payload(project, "src/pkg/thing.py", wide), project)
-    assert decision(result) == "deny"
-    assert "junior" in reason(result)
 
 
 def test_a_contract_that_no_longer_describes_its_module_is_denied(project: Path) -> None:

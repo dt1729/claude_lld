@@ -29,11 +29,11 @@
 /plugin install lld-seed@dt1729
 ```
 
-Then, in the Python repo you want governed:
+Design and the gate work immediately; there is nothing to generate first.
 
-```
-/lld-seed:scaffold-guidance
-```
+`/lld-seed:scaffold-guidance <path>` writes folder guidance, but only where an agent needs
+orienting. A library whose modules have contracts does not need it: the contracts are the
+documentation, and they are checked against the code.
 
 > **It will refuse writes.** A `PreToolUse` hook blocks new modules under `src/` that have no
 > design contract. That is the feature. `LLD_GATE=off` disables it; `.lld/gate.log` records
@@ -66,7 +66,7 @@ follow from that. This plugin supplies the missing step and refuses to let it be
 | Contract drift | Rule 37 — the module is checked against the interface its contract promises |
 | Gate | `PreToolUse` hook — no implementation in `src/` without a contract |
 | Enforcement | ruff, mypy `--strict`, import-linter, pytest, pre-commit |
-| Per-folder guidance | `/lld-seed:scaffold-guidance` — recursive, idempotent `CLAUDE.md` |
+| Folder guidance | `/lld-seed:scaffold-guidance` — only where an agent needs orienting, never a sweep |
 
 Anything a tool can check is enforced by the tool and named, not restated, in the prose.
 See `SCOPE.md` for the division of labour.

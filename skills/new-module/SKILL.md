@@ -90,11 +90,19 @@ contract diverge silently; the whole value is that the document stays true.
 Run `ruff`, `mypy --strict` and `pytest` before considering it done. Fix the code, not the
 configuration.
 
-## 5. Record the local guidance
+## 5. Record local guidance only if the folder needs it
 
-Run `/lld-seed:scaffold-guidance <package-path>` to create or refresh that folder's
-`CLAUDE.md`: purpose, public interface, allowed dependencies, local invariants. It carries
-only what is local; the rules stay in the plugin.
+Skip this for a library package. The module's contract already carries responsibility,
+interface, dependencies and invariants, and it is checked against the code; a folder
+`CLAUDE.md` repeating any of that is an unchecked second copy.
+
+Write one when an agent will work in the folder and there is something local it cannot read
+off the code or the contracts - a convention spanning the folder, a hazard in the
+surrounding system, a reason the obvious change is wrong:
+
+```
+/lld-seed:scaffold-guidance <package-path>
+```
 
 ## Completion criteria
 
@@ -105,7 +113,7 @@ The module is done when all of these hold. Report which, if any, do not.
 - [ ] `ruff check`, `ruff format --check`, `mypy --strict`, `pytest` all green
 - [ ] No entry in [ANTI-PATTERNS.md](../design-patterns/ANTI-PATTERNS.md) is present, or a
       recorded judgment explains why the exception holds
-- [ ] The folder `CLAUDE.md` names this module in its public interface, if it is public
+- [ ] If the folder has a `CLAUDE.md`, it still describes the folder
 
 ## When the gate blocks you
 
