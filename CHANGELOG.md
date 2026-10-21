@@ -3,6 +3,62 @@
 Versions are `0.x`: the shape is still moving, so a minor bump may break a contract you
 already wrote. Each entry says which ones do.
 
+## 0.6.0 — 2026-10-21
+
+The release where the plugin stopped choosing its own colours.
+
+### Breaking
+
+- **The `dataviz` skill is now a prerequisite.** It ships with Claude Code. `lld-seed`
+  designs nothing of its own: every palette, surface and typeface in a generated diagram is
+  a role from `dataviz/references/palette.md`. `/lld-seed:diagram` exits 3 with the install
+  instruction rather than draw a figure whose colours nothing validated. If the skill lives
+  somewhere the script does not look, name it: `LLD_DATAVIZ=/path/to/dataviz`.
+
+### Why it became a requirement
+
+The diagrams shipped in 0.5.0 with a palette picked by hand here. Colour in them carries
+meaning — blue is a type, red is an error — so that was an accessibility decision made by
+taste. The validator `dataviz` ships failed it on three of five checks:
+
+```
+[FAIL] CVD separation      #b3282b <-> #3f7d20  dE 1.3 (deutan)
+[FAIL] Normal-vision floor #8a6400 <-> #3f7d20  dE 11.8   (floor 15)
+[FAIL] Lightness band      dark: 3 of 4 slots outside L 0.48-0.67
+```
+
+Delta-E 1.3 is the finding. The two colours separating an error from a success were, for a
+reader with deuteranopia, one colour. The roles now in use pass the same validator at
+delta-E 23.8 light and 25.7 dark against a floor of 8.0.
+
+Fixing the hexes and continuing to choose them was the rejected alternative: it leaves the
+next person free to pick by eye, which is the failure rather than the symptom. So the rule is
+written in `SCOPE.md`, `README.md`, `CLAUDE.md` and `commands/diagram.md`, `find_dataviz`
+enforces it, and `scripts/tests/test_palette.py` pins every role to its shipped value.
+(incident 010)
+
+### Also in this release
+
+- Standalone diagrams are readable on a dark page. They were emitted with `currentColor`,
+  which resolves only for inline SVG; as files referenced as images every stroke fell back to
+  near-black. Colours are literal now, with a `prefers-color-scheme` block and a `data-theme`
+  scope, which is the pattern `dataviz` prescribes.
+- Prose in a figure follows the shipped rule — system sans, no serif. Identifiers stay in
+  mono, the one documented departure: a node label is a name the reader has to grep for.
+- 265 tests, up from 254.
+
+### Known limits
+
+- Only the palette and type come from `dataviz`. Its other steps — mark specs, the hover
+  layer, the legend and direct-label pass, the anti-patterns catalogue — are not applied to
+  these diagrams yet.
+- Control-flow layout places nodes in declaration order, so a raise target can sit in an
+  earlier row than the function raising into it and those arrows point upward.
+
+**Still unverified**, unchanged from 0.5.0: the `PreToolUse` hook has been exercised with
+real payloads through the exact command the manifest declares, but never observed
+intercepting a write inside a live session.
+
 ## 0.5.0 — 2026-10-21
 
 The release where the tooling stopped only checking work and started producing it.

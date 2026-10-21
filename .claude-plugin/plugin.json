@@ -1,7 +1,7 @@
 {
   "name": "lld-seed",
   "displayName": "LLD Seed",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Forces low-level design before implementation in Python repos: a contract gate, 38 AST-checked rules, test obligations and diagrams derived from your source.",
   "author": {
     "name": "Divya Tiwari",

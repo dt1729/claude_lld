@@ -10,8 +10,8 @@
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg">
   <img alt="Python 3.12+" src="https://img.shields.io/badge/python-3.12%2B-blue.svg">
   <img alt="Runtime dependencies: none" src="https://img.shields.io/badge/runtime%20deps-stdlib%20only-brightgreen.svg">
-  <img alt="Tests: 137 passing" src="https://img.shields.io/badge/tests-254%20passing-brightgreen.svg">
-  <img alt="Status: v0.5.0" src="https://img.shields.io/badge/status-v0.5.0-orange.svg">
+  <img alt="Tests: 265 passing" src="https://img.shields.io/badge/tests-265%20passing-brightgreen.svg">
+  <img alt="Status: v0.6.0" src="https://img.shields.io/badge/status-v0.6.0-orange.svg">
 </p>
 
 <p align="center">
