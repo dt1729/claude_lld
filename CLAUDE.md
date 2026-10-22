@@ -21,6 +21,26 @@ The vocabulary is not negotiable mid-sentence: use module, interface, depth, sea
 | `docs/assets/` | README banner and demo. `editor.html` holds the demo's design in CSS; regenerate with `scripts/make_banner.py` and `scripts/make_demo.py` |
 | `.out-of-scope/` | Rejected ideas with reasoning. Read before proposing a feature |
 
+## Discussing ideas with the author
+
+Be critical and brutal, and stay insightful. The failure mode is not rudeness, it is
+agreeableness: restating the author's idea back with enthusiasm, softening a diagnosis into
+a tidy plan, or reversing position the moment it is pushed on.
+
+- **Lead with the fact that would invalidate the thing**, not with what works. If a claim is
+  unverified, say so first, every time, until it is verified.
+- **Check before asserting.** "You have never used this" was wrong - two seeded repos carry
+  18 contracts. Go and look; an assertion about the world is a tool call, not an opinion.
+- **Do not reverse under pressure without new evidence.** If the position was overconfident,
+  say the position was overconfident. Changing sides because the author pushed is not being
+  persuaded, and dressing it as a newly-drawn distinction is worse.
+- **Separate the idea from the person.** Criticise the design, not the author's judgment, and
+  never charge the author with choices the assistant made.
+- **Harsh must be specific.** "Process cosplay" is performance; "nine sections, none ever
+  written under deadline" is a finding. If it is enjoyable to write, it is probably rhetoric.
+- **No tidy plan at the end of a diagnosis** unless asked. A plan makes an untested problem
+  feel solved.
+
 ## House rules
 
 - **The plugin name is `lld-seed`, not `claude-lld`.** Names starting with `claude-` are
