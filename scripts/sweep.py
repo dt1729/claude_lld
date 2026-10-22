@@ -27,7 +27,7 @@ from typing import Any, Final
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent / "core"))
 
-from core import callgraph, entrypoints, reach
+from core import callgraph, clones, entrypoints, reach
 from logsetup import configure
 
 log = logging.getLogger("lld.sweep")
@@ -71,7 +71,12 @@ def find_entries(parsed: dict[str, tuple[Any, str]], root: Path) -> list[entrypo
     return sorted(found)
 
 
-def _report(part: reach.Partition, graph: callgraph.CallGraph, kind: str) -> str:
+def _report(
+    part: reach.Partition,
+    graph: callgraph.CallGraph,
+    kind: str,
+    parsed: dict[str, tuple[Any, str]],
+) -> str:
     total = len(graph.definitions)
     lines = [
         f"repository kind: {kind}",
@@ -99,6 +104,15 @@ def _report(part: reach.Partition, graph: callgraph.CallGraph, kind: str) -> str
         lines += ["", "entry-point overlap (1.0 means one tangle with two doors):"]
         for (left, right), score in sorted(pairs.items(), key=lambda kv: -kv[1])[:10]:
             lines.append(f"  {score:.2f}  {left}  <->  {right}")
+
+    found = clones.find(parsed)
+    if found:
+        rate = clones.duplication_rate(parsed)
+        lines += ["", f"duplication rate {rate:.1%}  ({len(found)} repeated shapes):"]
+        for clone in found[:10]:
+            where = clones.verdict(clone, part.feature_local, part.dead)
+            sites = ", ".join(s.qualified for s in clone.sites[:3])
+            lines.append(f"  {clone.size:3d} stmts  {where:24s}  {sites}")
 
     if kind == entrypoints.LIBRARY:
         lines += [
@@ -153,13 +167,14 @@ def main(argv: list[str] | None = None) -> int:
                     "dead": sorted(part.dead),
                     "feature_local": {k: sorted(v) for k, v in part.feature_local.items()},
                     "overlap": {f"{a} <-> {b}": v for (a, b), v in reach.overlap(part).items()},
+                    "duplication_rate": clones.duplication_rate(parsed),
                 },
                 indent=2,
             )
         )
         return 0
 
-    print(_report(part, graph, kind))
+    print(_report(part, graph, kind, parsed))
     return 0
 
 
