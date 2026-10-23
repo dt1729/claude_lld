@@ -222,3 +222,21 @@ def test_a_name_that_ran_but_looked_unreachable_is_the_graphs_error() -> None:
     )
     assert part.graph_was_wrong == frozenset({"app.never_called"})
     assert part.dead == frozenset()
+
+
+def test_a_migration_is_an_entry_point_a_tool_runs() -> None:
+    """Alembic imports a migration and calls upgrade(); nothing in the source references it.
+
+    Found on codesense-ai, where two of nineteen names reported dead were a migration's
+    upgrade and downgrade. The other seventeen were a utility layer nothing called, which
+    was correct.
+    """
+    tree = ast.parse("def upgrade() -> None:\n    pass\n\n\ndef downgrade() -> None:\n    pass\n")
+    found = entrypoints.in_module(tree, "v1", "alembic/versions/v1.py", set())
+    assert {e.kind for e in found} == {entrypoints.TOOL_RUN}
+
+
+def test_the_same_name_outside_a_migration_directory_is_not_an_entry_point() -> None:
+    """upgrade() in ordinary code is an ordinary function."""
+    tree = ast.parse("def upgrade() -> None:\n    pass\n")
+    assert entrypoints.in_module(tree, "app", "app/service.py", set()) == []

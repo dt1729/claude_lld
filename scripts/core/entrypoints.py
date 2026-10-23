@@ -50,6 +50,13 @@ FRAMEWORK_DECORATORS: Final = frozenset(
     }
 )
 
+#: Directories whose modules a tool runs by convention, with no call anywhere in the source.
+#: Alembic imports a migration and calls upgrade(); nothing references it, so without this
+#: every migration in a repository reads as dead. Found on codesense-ai, where it was two of
+#: the nineteen names reported unreachable - the other seventeen were genuinely unused.
+TOOL_RUN_DIRS: Final = frozenset({"migrations", "versions", "alembic"})
+TOOL_RUN_NAMES: Final = frozenset({"upgrade", "downgrade"})
+
 APPLICATION: Final = "application"
 LIBRARY: Final = "library"
 MIXED: Final = "mixed"
@@ -60,6 +67,7 @@ MAIN_GUARD: Final = "main-guard"
 CONSOLE_SCRIPT: Final = "console-script"
 TEST: Final = "test"
 FRAMEWORK: Final = "framework-decorator"
+TOOL_RUN: Final = "tool-invoked"
 EXPORT: Final = "exported-name"
 
 
@@ -156,6 +164,8 @@ def in_module(tree: ast.Module, module: str, path: str, declared: set[str]) -> l
             kind = TEST
         elif any(_decorator_name(d) in FRAMEWORK_DECORATORS for d in node.decorator_list):
             kind = FRAMEWORK
+        elif name in TOOL_RUN_NAMES and TOOL_RUN_DIRS & set(path.split("/")):
+            kind = TOOL_RUN
         if kind:
             found.append(EntryPoint(qualified, kind, path, node.lineno))
     return found
@@ -168,7 +178,7 @@ def classify(entries: list[EntryPoint], exported: int) -> str:
     and a dead-code report is noise. Saying so is better than reporting an empty result and
     letting a reader conclude the code is clean.
     """
-    runnable = [e for e in entries if e.kind in (MAIN_GUARD, CONSOLE_SCRIPT, FRAMEWORK)]
+    runnable = [e for e in entries if e.kind in (MAIN_GUARD, CONSOLE_SCRIPT, FRAMEWORK, TOOL_RUN)]
     if not runnable:
         return LIBRARY
     return MIXED if exported > len(runnable) * 10 else APPLICATION
