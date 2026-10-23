@@ -58,6 +58,7 @@ FRAMEWORK_DECORATORS: Final = frozenset(
 #: Constructors whose module-level instance a server process imports and serves. The module
 #: body is the entry - ``app = FastAPI()`` followed by ``app.include_router(...)`` is run by
 #: uvicorn from a string, and nothing in the source ever calls it.
+SERVED_NAMES: Final = frozenset({"app", "application"})
 APP_FACTORIES: Final = frozenset(
     {"FastAPI", "Flask", "Starlette", "FastMCP", "Celery", "Typer", "Quart", "Litestar", "Sanic"}
 )
@@ -124,13 +125,19 @@ def _has_main_guard(tree: ast.Module) -> bool:
 
 
 def _serves_app(tree: ast.Module) -> int:
-    """Line of a module-level ``name = Framework()`` assignment, or 0."""
+    """Line of a module-level ``app = Framework()`` or ``app = create_application()``, or 0.
+
+    Either the constructor is a known framework, or the target is called ``app`` or
+    ``application`` - the name a server process is told to import, whatever builds it.
+    """
     for node in tree.body:
-        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
-            func = node.value.func
-            name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
-            if name in APP_FACTORIES:
-                return node.lineno
+        if not (isinstance(node, ast.Assign) and isinstance(node.value, ast.Call)):
+            continue
+        func = node.value.func
+        name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+        targets = {t.id for t in node.targets if isinstance(t, ast.Name)}
+        if name in APP_FACTORIES or targets & SERVED_NAMES:
+            return node.lineno
     return 0
 
 

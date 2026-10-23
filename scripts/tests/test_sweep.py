@@ -22,6 +22,12 @@ def parse(**modules: str) -> dict[str, tuple[ast.Module, str]]:
     return {name: (ast.parse(src), f"{name}.py") for name, src in modules.items()}
 
 
+def calls(graph: callgraph.CallGraph, name: str) -> set[str]:
+    """Successors that are definitions - the module-body roots a call also implies are
+    not what these tests are about."""
+    return {s for s in graph.successors(name) if not s.endswith((".__import__", ".__main__"))}
+
+
 def entries_for(parsed: dict[str, tuple[ast.Module, str]]) -> list[entrypoints.EntryPoint]:
     found: list[entrypoints.EntryPoint] = []
     for module, (tree, path) in sorted(parsed.items()):
@@ -70,8 +76,8 @@ def test_a_local_name_wins_over_the_same_name_elsewhere() -> None:
         two="def helper() -> None:\n    pass\n\n\ndef main() -> None:\n    helper()\n",
     )
     graph = callgraph.build(parsed)
-    assert graph.successors("one.main") == {"one.helper"}
-    assert graph.successors("two.main") == {"two.helper"}
+    assert calls(graph, "one.main") == {"one.helper"}
+    assert calls(graph, "two.main") == {"two.helper"}
 
 
 def test_an_imported_name_resolves_to_what_was_imported() -> None:
@@ -79,7 +85,7 @@ def test_an_imported_name_resolves_to_what_was_imported() -> None:
         lib="def work() -> None:\n    pass\n",
         app="from lib import work\n\n\ndef main() -> None:\n    work()\n",
     )
-    assert callgraph.build(parsed).successors("app.main") == {"lib.work"}
+    assert calls(callgraph.build(parsed), "app.main") == {"lib.work"}
 
 
 def test_a_type_annotation_is_not_a_call() -> None:
@@ -88,7 +94,7 @@ def test_a_type_annotation_is_not_a_call() -> None:
         lib="class Report:\n    pass\n\n\ndef unused() -> None:\n    pass\n",
         app="from lib import Report\n\n\ndef main(r: Report) -> None:\n    pass\n",
     )
-    assert callgraph.build(parsed).successors("app.main") == set()
+    assert calls(callgraph.build(parsed), "app.main") == set()
 
 
 # --- the four sets ----------------------------------------------------------------------------
@@ -251,7 +257,7 @@ def test_a_call_into_a_dependency_is_not_an_edge() -> None:
         app="import requests\n\n\ndef fetch():\n    return requests.get('http://x')\n",
         store="def get():\n    return 1\n",
     )
-    assert callgraph.build(parsed).successors("app.fetch") == set()
+    assert calls(callgraph.build(parsed), "app.fetch") == set()
 
 
 def test_an_internal_call_of_the_same_name_still_resolves() -> None:
@@ -259,7 +265,7 @@ def test_an_internal_call_of_the_same_name_still_resolves() -> None:
         app="from store import get\n\n\ndef fetch():\n    return get()\n",
         store="def get():\n    return 1\n",
     )
-    assert callgraph.build(parsed).successors("app.fetch") == {"store.get"}
+    assert calls(callgraph.build(parsed), "app.fetch") == {"store.get"}
 
 
 def test_a_sibling_import_through_sys_path_is_internal() -> None:
@@ -383,3 +389,55 @@ def test_a_module_that_builds_the_served_app_is_an_entry_point() -> None:
 def test_a_module_with_a_main_guard_is_not_listed_twice_for_its_app() -> None:
     parsed = parse(main='app = Flask(__name__)\n\nif __name__ == "__main__":\n    app.run()\n')
     assert [e.kind for e in entries_for(parsed)] == [entrypoints.MAIN_GUARD]
+
+
+def test_an_app_built_by_a_factory_is_still_a_served_module() -> None:
+    """``app = create_application()`` in main.py is what uvicorn imports; the factory's name
+    is the author's, so the target name carries the convention."""
+    parsed = parse(main="from src.core import create_application\n\napp = create_application()\n")
+    assert [e.kind for e in entries_for(parsed)] == [entrypoints.SERVED]
+
+
+def test_a_method_handed_to_a_widget_as_a_callback_is_reached() -> None:
+    """``Button(command=self._send)`` never calls ``_send`` in the source; in one tkinter
+    application every handler wired that way read as dead - 127 of 859 definitions."""
+    src = "\n".join(
+        [
+            "class App:",
+            "    def __init__(self):",
+            "        self.button = Button(command=self._send)",
+            "",
+            "    def _send(self):",
+            "        pass",
+            "",
+            "",
+            "def main():",
+            "    return App()",
+        ]
+    )
+    assert "app.App._send" in reach_of(parse(app=src), "app.main")
+
+
+def test_a_table_built_at_import_time_is_reached_through_the_import() -> None:
+    """``SCREENS = [Gate(fn=_margin)]`` is the only reference to ``_margin``; it runs when the
+    module is imported, never when anything is called. 66 gate functions in one screener
+    read as dead for this."""
+    parsed = {
+        "qs.screens": (
+            ast.parse("def _margin(c):\n    return 1\n\n\nSCREENS = [_margin]\n"),
+            "qs/screens.py",
+        ),
+        "qs.audit": (
+            ast.parse("from .screens import SCREENS\n\n\ndef run():\n    return len(SCREENS)\n"),
+            "qs/audit.py",
+        ),
+    }
+    assert "qs.screens._margin" in reach_of(parsed, "qs.audit.run")
+
+
+def test_calling_a_function_counts_its_modules_body_as_run() -> None:
+    parsed = parse(
+        util="def helper():\n    return 1\n\n\nREGISTRY = [helper]\n\n\ndef lookup():\n    return REGISTRY\n",
+        app="from util import lookup\n\n\ndef main():\n    return lookup()\n",
+    )
+    assert "util.helper" in reach_of(parsed, "app.main")

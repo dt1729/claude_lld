@@ -151,8 +151,9 @@ def _referenced_names(
 
     ``modules`` holds the names this file bound to one of our own modules. ``jobs.process``
     read as a value - a command table, a callback registered by reference - is then an edge to
-    ``process``; ``cfg.get`` is not, because ``cfg`` is not a module of ours and matching the
-    word ``get`` against an internal definition would be an invention.
+    ``process``, and so is ``self._on_click`` handed to a widget as ``command=``; ``cfg.get``
+    is not, because ``cfg`` is neither a module of ours nor the instance itself, and matching
+    the word ``get`` against an internal definition would be an invention.
     """
     skip = _annotation_nodes(node)
     names = [_called_name(c, foreign) for c in ast.walk(node) if isinstance(c, ast.Call)]
@@ -162,7 +163,7 @@ def _referenced_names(
         if isinstance(n, ast.Attribute)
         and isinstance(n.ctx, ast.Load)
         and isinstance(n.value, ast.Name)
-        and n.value.id in modules
+        and (n.value.id in modules or n.value.id in ("self", "cls"))
         and id(n) not in skip
     ]
     names += [
@@ -176,13 +177,32 @@ def _referenced_names(
     return [n for n in names if n]
 
 
+def _is_main_guard(node: ast.stmt) -> bool:
+    return (
+        isinstance(node, ast.If)
+        and isinstance(node.test, ast.Compare)
+        and isinstance(node.test.left, ast.Name)
+        and node.test.left.id == "__name__"
+    )
+
+
 def _module_level_calls(
-    tree: ast.Module, foreign: frozenset[str], modules: frozenset[str] = frozenset()
+    tree: ast.Module,
+    foreign: frozenset[str],
+    modules: frozenset[str] = frozenset(),
+    *,
+    guarded: bool = False,
 ) -> list[str]:
-    """Names read at import time, which run whether or not anything calls the module."""
+    """Names read at import time, which run whether or not anything calls the module.
+
+    With ``guarded`` the names inside ``if __name__ == "__main__":`` instead - those run
+    only when the module is the program, never when a test or a sibling imports it.
+    """
     names: list[str] = []
     for node in tree.body:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        if _is_main_guard(node) != guarded:
             continue
         names += _referenced_names(node, foreign, modules)
     return names
@@ -239,6 +259,49 @@ def module_aliases(tree: ast.Module, foreign: frozenset[str]) -> frozenset[str]:
         if isinstance(node, (ast.Import, ast.ImportFrom)):
             bound |= {a.asname or a.name.split(".")[0] for a in node.names}
     return frozenset(bound - foreign)
+
+
+def _import_base(node: ast.ImportFrom, module: str, parsed: set[str]) -> str:
+    """The dotted module a ``from ... import`` names, relative imports resolved."""
+    base = node.module or ""
+    if node.level:
+        parts = module.split(".")
+        head = ".".join(parts[: -node.level]) if node.level < len(parts) else ""
+        return ".".join(p for p in (head, base) if p)
+    package = module.rsplit(".", 1)[0] if "." in module else ""
+    if package and f"{package}.{base}" in parsed:
+        return f"{package}.{base}"
+    return base
+
+
+def imported_modules(tree: ast.Module, module: str, parsed: set[str]) -> set[str]:
+    """Our own modules whose body runs when this one is imported.
+
+    Exact dotted names, ``from pkg import sub``, relative imports resolved against this
+    module's package, and the sys.path sibling spelling that ``internal_roots`` allows - a
+    suffix match, which over-links when two packages share a leaf name. That errs toward
+    live, the safe direction.
+    """
+    out: set[str] = set()
+
+    def add(name: str) -> None:
+        if name in parsed:
+            out.add(name)
+        else:
+            out.update(k for k in parsed if k.endswith("." + name))
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                add(alias.name)
+        elif isinstance(node, ast.ImportFrom):
+            base = _import_base(node, module, parsed)
+            if base:
+                add(base)
+            for alias in node.names:
+                add(f"{base}.{alias.name}" if base else alias.name)
+    out.discard(module)
+    return out
 
 
 def _imported_names(tree: ast.Module, known: set[str]) -> dict[str, str]:
@@ -322,6 +385,17 @@ def build(parsed: dict[str, tuple[ast.Module, str]]) -> CallGraph:
         graph.edges.setdefault(import_root, set())
         for name in _module_level_calls(tree, outside, ours):
             graph.edges[import_root] |= _resolve(name, module, imported, by_name)
+        # Importing a module runs its body, and its body imports others. A table built at
+        # module level - SCREENS = [Gate(fn=_gross_margin), ...] - is the only reference to
+        # the functions in it, and it is reached by import, never by call.
+        graph.edges[import_root] |= {
+            f"{m}.__import__" for m in imported_modules(tree, module, set(parsed))
+        }
+        # Running the module as the program is the import-time body plus the guarded block.
+        main_root = f"{module}.__main__"
+        graph.edges[main_root] = {import_root}
+        for name in _module_level_calls(tree, outside, ours, guarded=True):
+            graph.edges[main_root] |= _resolve(name, module, imported, by_name)
 
         for qualified in [d for d in graph.definitions if d.startswith(f"{module}.")]:
             body = _body_of(tree, qualified)
@@ -329,7 +403,9 @@ def build(parsed: dict[str, tuple[ast.Module, str]]) -> CallGraph:
                 continue
             targets, blind = _targets_of(body, module, imported, by_name, outside, ours)
             graph.unresolved += blind
-            graph.edges[qualified] = targets - {qualified}
+            # A function cannot run before its module's body has; the body is part of what
+            # calling it reaches.
+            graph.edges[qualified] = (targets - {qualified}) | {import_root}
     return graph
 
 

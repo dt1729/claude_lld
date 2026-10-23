@@ -27,7 +27,7 @@ from dataclasses import dataclass
 from itertools import combinations
 
 from core.callgraph import CallGraph
-from core.entrypoints import EntryPoint
+from core.entrypoints import MAIN_GUARD, EntryPoint
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,6 +69,8 @@ def _entry_root(graph: CallGraph, entry: EntryPoint) -> str:
     if entry.qualified in graph.definitions:
         return entry.qualified
     module = entry.qualified.rsplit(".", 1)[0]
+    if entry.kind == MAIN_GUARD:
+        return f"{module}.__main__"
     return f"{module}.__import__"
 
 
