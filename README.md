@@ -11,7 +11,7 @@
   <img alt="Python 3.12+" src="https://img.shields.io/badge/python-3.12%2B-blue.svg">
   <img alt="Runtime dependencies: none" src="https://img.shields.io/badge/runtime%20deps-stdlib%20only-brightgreen.svg">
   <img alt="Tests: 265 passing" src="https://img.shields.io/badge/tests-265%20passing-brightgreen.svg">
-  <img alt="Status: v0.6.0" src="https://img.shields.io/badge/status-v0.6.0-orange.svg">
+  <img alt="Status: v0.7.0" src="https://img.shields.io/badge/status-v0.7.0-orange.svg">
 </p>
 
 <p align="center">
@@ -81,6 +81,8 @@ follow from that. This plugin supplies the missing step and refuses to let it be
 | Enforcement | ruff, mypy `--strict`, import-linter, pytest, pre-commit |
 | Diagrams | `/lld-seed:diagram` — inheritance, dependencies, control flow and errors, drawn from the AST with a controlled vocabulary |
 | Folder guidance | `/lld-seed:scaffold-guidance` — only where an agent needs orienting, never a sweep |
+| Repository sweep | `/lld-seed:sweep` — entry points, reach sets, dead code and Type-1/2 clones over a whole repo, with the lists behind every number |
+| Outreach | `/lld-seed:propose` — one verified finding on someone else's repo, as a pull request they can merge or an issue they can answer |
 
 Anything a tool can check is enforced by the tool and named, not restated, in the prose.
 See `SCOPE.md` for the division of labour.

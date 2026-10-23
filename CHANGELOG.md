@@ -3,7 +3,10 @@
 Versions are `0.x`: the shape is still moving, so a minor bump may break a contract you
 already wrote. Each entry says which ones do.
 
-## Unreleased
+## 0.7.0 — 2026-10-23
+
+The release where contracts started saying what a function refuses, and the sweep started
+reading its own lists.
 
 ### Breaking
 
@@ -70,6 +73,33 @@ counterexamples worth having. See `docs/proposals/001a-where-contracts-execute.m
 The projection edits a file you already own, so it never writes without `--write`, skips a
 function with no docstring, and skips a prose condition rather than emit an unparseable
 `pre:`. Rule 39 reports a block that has drifted from its contract.
+
+### Sweep
+
+Two new commands. `/lld-seed:sweep` runs the repository-level reachability and duplication
+analysis that until now lived only in `scripts/sweep.py`, and `/lld-seed:propose` turns one
+verified finding on someone else's repository into a pull request or issue, with the bar for
+what may be sent written down: one finding, verified in the source, carrying its own tests,
+no sales pitch.
+
+The detector itself was measured against 125 Claude-authored repositories on the way, and
+most of what it called dead was its own blindness. Each gap is now closed, with a test
+naming the repository that exposed it:
+
+- a dotted name handed around as a value (`{"process": jobs.process}`) was not an edge;
+  55 of 291 definitions in one repository read as dead, 8 after;
+- `Foo()` never reached `Foo.__init__`, so constructors and everything only they set up
+  read as dead;
+- a callback bound as `self._send` was not a reference; 127 of 859 in one tkinter app;
+- `@mcp.tool` and friends were not framework decorators; 253 of 886 in one MCP server;
+- `app = FastAPI()` and `app = create_application()` were not entry points;
+- a module's import-time body was not part of reaching it, so a table like
+  `SCREENS = [Gate(fn=_margin)]` left every function in it dead - 66 in one screener. The
+  main guard is now the one block an import does not run.
+
+What remains known-wrong is listed in the command: framework dispatch (`HTMLParser`
+handlers, pydantic validators, dunders), libraries whose API has no in-repo callers, and
+deliberate copies. Those need a reader, and the command says to be one.
 
 ## 0.6.0 — 2026-10-21
 
