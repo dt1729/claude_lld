@@ -47,7 +47,19 @@ FRAMEWORK_DECORATORS: Final = frozenset(
         "app",
         "on_event",
         "websocket",
+        # FastMCP, LangChain and friends: the framework calls the tool, nothing in the source
+        # does. 253 of 886 definitions in one MCP server read as dead without this.
+        "tool",
+        "resource",
+        "prompt",
     }
+)
+
+#: Constructors whose module-level instance a server process imports and serves. The module
+#: body is the entry - ``app = FastAPI()`` followed by ``app.include_router(...)`` is run by
+#: uvicorn from a string, and nothing in the source ever calls it.
+APP_FACTORIES: Final = frozenset(
+    {"FastAPI", "Flask", "Starlette", "FastMCP", "Celery", "Typer", "Quart", "Litestar", "Sanic"}
 )
 
 #: Directories whose modules a tool runs by convention, with no call anywhere in the source.
@@ -64,6 +76,7 @@ MIXED: Final = "mixed"
 #: Why a candidate is an entry point. Carried on the finding so a reader can disagree with
 #: the reason rather than with the conclusion.
 MAIN_GUARD: Final = "main-guard"
+SERVED: Final = "served-app"
 CONSOLE_SCRIPT: Final = "console-script"
 TEST: Final = "test"
 FRAMEWORK: Final = "framework-decorator"
@@ -110,6 +123,17 @@ def _has_main_guard(tree: ast.Module) -> bool:
     return False
 
 
+def _serves_app(tree: ast.Module) -> int:
+    """Line of a module-level ``name = Framework()`` assignment, or 0."""
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
+            func = node.value.func
+            name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+            if name in APP_FACTORIES:
+                return node.lineno
+    return 0
+
+
 def _functions(tree: ast.Module) -> list[tuple[str, ast.FunctionDef | ast.AsyncFunctionDef]]:
     """Every function with the name a caller would use, methods qualified by their class."""
     out: list[tuple[str, ast.FunctionDef | ast.AsyncFunctionDef]] = []
@@ -154,6 +178,8 @@ def in_module(tree: ast.Module, module: str, path: str, declared: set[str]) -> l
     found: list[EntryPoint] = []
     if _has_main_guard(tree):
         found.append(EntryPoint(f"{module}.__main__", MAIN_GUARD, path, 1))
+    elif line := _serves_app(tree):
+        found.append(EntryPoint(f"{module}.__main__", SERVED, path, line))
 
     for name, node in _functions(tree):
         qualified = f"{module}.{name}"

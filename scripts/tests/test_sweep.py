@@ -340,3 +340,46 @@ def test_an_attribute_of_something_not_an_internal_module_is_not_an_edge() -> No
         "pkg.app": (ast.parse("def run(cfg):\n    return cfg.get\n"), "pkg/app.py"),
     }
     assert "pkg.store.get" not in reach_of(parsed, "pkg.app.run")
+
+
+# --- what the second batch taught ---------------------------------------------------------------
+
+
+def test_a_constructor_call_reaches_init() -> None:
+    """``Foo()`` runs ``Foo.__init__``; a graph keyed on function names never saw that, and in
+    one tkinter application the constructor and the sixty methods it set up all read as dead."""
+    src = "\n".join(
+        [
+            "class Foo:",
+            "    def __init__(self):",
+            "        self.setup()",
+            "",
+            "    def setup(self):",
+            "        pass",
+            "",
+            "",
+            "def main():",
+            "    return Foo()",
+        ]
+    )
+    assert {"app.Foo.__init__", "app.Foo.setup"} <= reach_of(parse(app=src), "app.main")
+
+
+def test_an_mcp_tool_is_a_framework_entry_point() -> None:
+    parsed = parse(server='@mcp.tool(name="x")\ndef x():\n    return 1\n')
+    assert [(e.qualified, e.kind) for e in entries_for(parsed)] == [
+        ("server.x", entrypoints.FRAMEWORK)
+    ]
+
+
+def test_a_module_that_builds_the_served_app_is_an_entry_point() -> None:
+    """uvicorn imports ``main:app`` from a string; nothing in the source calls the module."""
+    parsed = parse(main="from fastapi import FastAPI\n\napp = FastAPI()\napp.include_router(r)\n")
+    assert [(e.qualified, e.kind) for e in entries_for(parsed)] == [
+        ("main.__main__", entrypoints.SERVED)
+    ]
+
+
+def test_a_module_with_a_main_guard_is_not_listed_twice_for_its_app() -> None:
+    parsed = parse(main='app = Flask(__name__)\n\nif __name__ == "__main__":\n    app.run()\n')
+    assert [e.kind for e in entries_for(parsed)] == [entrypoints.MAIN_GUARD]

@@ -307,6 +307,12 @@ def build(parsed: dict[str, tuple[ast.Module, str]]) -> CallGraph:
             graph.definitions[definition.qualified] = definition
             by_name.setdefault(definition.name, set()).add(definition.qualified)
 
+    # ``Foo(...)`` names the class, and the code that runs is ``Foo.__init__``. Without this
+    # every constructor reads as dead and everything only the constructor calls with it.
+    for qualified, definition in graph.definitions.items():
+        if definition.name == "__init__":
+            by_name.setdefault(qualified.split(".")[-2], set()).add(qualified)
+
     known = set(graph.definitions)
     for module, (tree, _path) in sorted(parsed.items()):
         imported = _imported_names(tree, known)
