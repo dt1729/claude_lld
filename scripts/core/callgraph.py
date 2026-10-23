@@ -32,6 +32,12 @@ maps, decorators and anything a framework is given. So a bare reference to a kno
 definition counts as an edge from the scope that mentions it. It over-reports - a name
 mentioned and never invoked still links - and that is the safe direction.
 
+A call into a dependency is not an edge at all. ``requests.get(...)`` reduces to the bare
+name ``get``, which then matched every internal ``get`` in the repository and manufactured
+an edge to code the caller has never heard of. The dependency manifest says which import
+roots are foreign - that is what ``requirements.txt`` is for - and a call whose receiver is
+one of them resolves to nothing. Only the code someone wrote here is worth a graph.
+
 Annotations are excluded from that rule. ``def f(x: Finding) -> Report`` names two types
 and calls neither, and counting them made every annotated name reachable and the dead set
 empty. A type is a claim about a value, not a transfer of control.
@@ -69,12 +75,22 @@ class CallGraph:
         return self.edges.get(qualified, set())
 
 
-def _called_name(node: ast.Call) -> str:
-    """The last name in a call expression, or empty when the target is computed."""
+def _called_name(node: ast.Call, foreign: frozenset[str] = frozenset()) -> str:
+    """The last name in a call expression, or empty when it is computed or not ours.
+
+    ``foreign`` holds the names bound to a dependency in this module. ``requests.get()``
+    with ``requests`` foreign returns nothing, because the callee is not in this codebase
+    and matching it against an internal ``get`` is an invention.
+    """
     func = node.func
     if isinstance(func, ast.Name):
-        return func.id
+        return "" if func.id in foreign else func.id
     if isinstance(func, ast.Attribute):
+        root = func.value
+        while isinstance(root, ast.Attribute):
+            root = root.value
+        if isinstance(root, ast.Name) and root.id in foreign:
+            return ""
         return func.attr
     return ""
 
@@ -126,26 +142,72 @@ def _annotation_nodes(node: ast.AST) -> set[int]:
     return out
 
 
-def _referenced_names(node: ast.AST) -> list[str]:
+def _referenced_names(node: ast.AST, foreign: frozenset[str] = frozenset()) -> list[str]:
     """Every name this scope reads: calls, and functions handed around as values."""
     skip = _annotation_nodes(node)
-    names = [_called_name(c) for c in ast.walk(node) if isinstance(c, ast.Call)]
+    names = [_called_name(c, foreign) for c in ast.walk(node) if isinstance(c, ast.Call)]
     names += [
         n.id
         for n in ast.walk(node)
-        if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load) and id(n) not in skip
+        if isinstance(n, ast.Name)
+        and isinstance(n.ctx, ast.Load)
+        and id(n) not in skip
+        and n.id not in foreign
     ]
     return [n for n in names if n]
 
 
-def _module_level_calls(tree: ast.Module) -> list[str]:
+def _module_level_calls(tree: ast.Module, foreign: frozenset[str]) -> list[str]:
     """Names read at import time, which run whether or not anything calls the module."""
     names: list[str] = []
     for node in tree.body:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             continue
-        names += _referenced_names(node)
+        names += _referenced_names(node, foreign)
     return names
+
+
+def internal_roots(known: set[str]) -> frozenset[str]:
+    """Every spelling by which a module in this repository can be imported.
+
+    A module this sweep calls ``scripts.contracts`` is imported as ``contracts`` by a script
+    that put its own directory on ``sys.path`` first, which is ordinary Python and extremely
+    common. Matching only the full dotted name marked every such sibling as a dependency and
+    reported fourteen live modules dead.
+
+    Suffixes are included, so a local ``json.py`` would shadow the standard library here the
+    same way it would at runtime. That errs toward calling things internal, which
+    over-reports reachability - the safe direction.
+    """
+    roots: set[str] = set()
+    for name in known:
+        parts = name.split(".")
+        roots |= {".".join(parts[i:]) for i in range(len(parts))}
+        roots |= {parts[i] for i in range(len(parts))}
+    return frozenset(roots)
+
+
+def foreign_names(tree: ast.Module, known: set[str]) -> frozenset[str]:
+    """Names this module bound to something outside the repository.
+
+    A module imported but absent from ``known`` is a dependency, a standard-library module,
+    or a package this sweep did not parse. In every case its internals are not ours.
+    """
+    roots = internal_roots(known)
+    out: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name.split(".")[0] not in roots:
+                    out.add(alias.asname or alias.name.split(".")[0])
+        elif (
+            isinstance(node, ast.ImportFrom)
+            and node.module
+            and node.level == 0
+            and node.module.split(".")[0] not in roots
+        ):
+            out |= {a.asname or a.name for a in node.names}
+    return frozenset(out)
 
 
 def _imported_names(tree: ast.Module, known: set[str]) -> dict[str, str]:
@@ -181,12 +243,18 @@ def _resolve(
 
 
 def _targets_of(
-    body: ast.AST, module: str, imported: dict[str, str], by_name: dict[str, set[str]]
+    body: ast.AST,
+    module: str,
+    imported: dict[str, str],
+    by_name: dict[str, set[str]],
+    foreign: frozenset[str] = frozenset(),
 ) -> tuple[set[str], int]:
     """What one definition reaches, and how many call sites could not be named at all."""
-    blind = sum(1 for c in ast.walk(body) if isinstance(c, ast.Call) and not _called_name(c))
+    blind = sum(
+        1 for c in ast.walk(body) if isinstance(c, ast.Call) and not _called_name(c, foreign)
+    )
     targets: set[str] = set()
-    for name in _referenced_names(body):
+    for name in _referenced_names(body, foreign):
         targets |= _resolve(name, module, imported, by_name)
     return targets, blind
 
@@ -210,16 +278,17 @@ def build(parsed: dict[str, tuple[ast.Module, str]]) -> CallGraph:
     known = set(graph.definitions)
     for module, (tree, _path) in sorted(parsed.items()):
         imported = _imported_names(tree, known)
+        outside = foreign_names(tree, set(parsed))
         import_root = f"{module}.__import__"
         graph.edges.setdefault(import_root, set())
-        for name in _module_level_calls(tree):
+        for name in _module_level_calls(tree, outside):
             graph.edges[import_root] |= _resolve(name, module, imported, by_name)
 
         for qualified in [d for d in graph.definitions if d.startswith(f"{module}.")]:
             body = _body_of(tree, qualified)
             if body is None:
                 continue
-            targets, blind = _targets_of(body, module, imported, by_name)
+            targets, blind = _targets_of(body, module, imported, by_name, outside)
             graph.unresolved += blind
             graph.edges[qualified] = targets - {qualified}
     return graph

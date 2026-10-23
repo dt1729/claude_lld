@@ -240,3 +240,38 @@ def test_the_same_name_outside_a_migration_directory_is_not_an_entry_point() -> 
     """upgrade() in ordinary code is an ordinary function."""
     tree = ast.parse("def upgrade() -> None:\n    pass\n")
     assert entrypoints.in_module(tree, "app", "app/service.py", set()) == []
+
+
+# --- dependencies are not ours ------------------------------------------------------------------
+
+
+def test_a_call_into_a_dependency_is_not_an_edge() -> None:
+    """requests.get() reduced to `get` and matched every internal get in the repository."""
+    parsed = parse(
+        app="import requests\n\n\ndef fetch():\n    return requests.get('http://x')\n",
+        store="def get():\n    return 1\n",
+    )
+    assert callgraph.build(parsed).successors("app.fetch") == set()
+
+
+def test_an_internal_call_of_the_same_name_still_resolves() -> None:
+    parsed = parse(
+        app="from store import get\n\n\ndef fetch():\n    return get()\n",
+        store="def get():\n    return 1\n",
+    )
+    assert callgraph.build(parsed).successors("app.fetch") == {"store.get"}
+
+
+def test_a_sibling_import_through_sys_path_is_internal() -> None:
+    """A script that puts its own directory on sys.path imports `contracts`, not
+    `scripts.contracts`. Matching only the full dotted name called fourteen live modules dead.
+    """
+    roots = callgraph.internal_roots({"scripts.contracts", "scripts.core.reach"})
+    assert "contracts" in roots
+    assert "core" in roots
+    assert "requests" not in roots
+
+
+def test_a_dependency_bound_by_from_import_is_foreign() -> None:
+    tree = ast.parse("from requests import get\n")
+    assert "get" in callgraph.foreign_names(tree, {"store"})
