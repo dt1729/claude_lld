@@ -101,7 +101,17 @@ def test_identifiers_stay_in_mono() -> None:
 
 
 def test_the_skill_is_found_when_it_is_installed() -> None:
-    """It ships with Claude Code, so a normal checkout finds it."""
+    """It ships with Claude Code, so a normal checkout finds it.
+
+    Skipped where it is genuinely absent. A headless server that has never run Claude Code
+    interactively has no extracted bundled skills, and this failed there - a red suite that
+    said nothing about the code. The prerequisite is enforced at runtime by ``diagrams.py``
+    exiting 3, and the planted-directory tests below cover the detection logic itself.
+    """
+    if not (Path.home() / ".claude" / "skills" / "dataviz").is_dir() and not list(
+        (Path(tempfile.gettempdir()) / "claude" / "bundled-skills").glob("*/*/dataviz")
+    ):
+        pytest.skip("the dataviz skill is not installed on this host")
     assert find_dataviz() is not None
 
 
