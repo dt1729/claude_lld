@@ -275,3 +275,68 @@ def test_a_sibling_import_through_sys_path_is_internal() -> None:
 def test_a_dependency_bound_by_from_import_is_foreign() -> None:
     tree = ast.parse("from requests import get\n")
     assert "get" in callgraph.foreign_names(tree, {"store"})
+
+
+# --- what gta-clipper taught: two ways a package refers to its own modules ---------------------
+
+
+def reach_of(parsed: dict[str, tuple[ast.Module, str]], start: str) -> set[str]:
+    graph = callgraph.build(parsed)
+    seen, todo = set(), [start]
+    while todo:
+        node = todo.pop()
+        for nxt in graph.successors(node):
+            if nxt not in seen:
+                seen.add(nxt)
+                todo.append(nxt)
+    return seen
+
+
+def test_a_relative_import_of_a_sibling_module_resolves() -> None:
+    """``from . import batch`` inside ``pkg/jobs.py`` has no module name to resolve against; it
+    reaches ``pkg.batch`` today only through the bare-name fallback. Pinned so a stricter
+    resolver cannot lose it."""
+    parsed = {
+        "pkg.batch": (ast.parse("def submit():\n    return 1\n"), "pkg/batch.py"),
+        "pkg.jobs": (
+            ast.parse("def process():\n    from . import batch\n    return batch.submit()\n"),
+            "pkg/jobs.py",
+        ),
+    }
+    assert "pkg.batch.submit" in reach_of(parsed, "pkg.jobs.process")
+
+
+def test_a_relative_from_import_resolves_against_the_package() -> None:
+    parsed = {
+        "pkg.batch": (ast.parse("def submit():\n    return 1\n"), "pkg/batch.py"),
+        "pkg.jobs": (
+            ast.parse("from .batch import submit\n\n\ndef process():\n    return submit()\n"),
+            "pkg/jobs.py",
+        ),
+    }
+    assert "pkg.batch.submit" in reach_of(parsed, "pkg.jobs.process")
+
+
+def test_a_module_attribute_handed_around_as_a_value_is_an_edge() -> None:
+    """``CMDS = {"process": jobs.process}`` never calls ``jobs.process``; bare names as values
+    were already edges, dotted ones were not, and a whole command table read as dead."""
+    parsed = {
+        "pkg.jobs": (ast.parse("def process():\n    return 1\n"), "pkg/jobs.py"),
+        "pkg.__main__": (
+            ast.parse(
+                'from . import jobs\n\nCMDS = {"process": jobs.process}\n\n'
+                'if __name__ == "__main__":\n    CMDS[__import__("sys").argv[1]]()\n'
+            ),
+            "pkg/__main__.py",
+        ),
+    }
+    assert "pkg.jobs.process" in reach_of(parsed, "pkg.__main__.__import__")
+
+
+def test_an_attribute_of_something_not_an_internal_module_is_not_an_edge() -> None:
+    """``cfg.get`` must not resolve to an internal ``get`` just because the word matches."""
+    parsed = {
+        "pkg.store": (ast.parse("def get():\n    return 1\n"), "pkg/store.py"),
+        "pkg.app": (ast.parse("def run(cfg):\n    return cfg.get\n"), "pkg/app.py"),
+    }
+    assert "pkg.store.get" not in reach_of(parsed, "pkg.app.run")

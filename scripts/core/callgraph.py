@@ -142,10 +142,29 @@ def _annotation_nodes(node: ast.AST) -> set[int]:
     return out
 
 
-def _referenced_names(node: ast.AST, foreign: frozenset[str] = frozenset()) -> list[str]:
-    """Every name this scope reads: calls, and functions handed around as values."""
+def _referenced_names(
+    node: ast.AST,
+    foreign: frozenset[str] = frozenset(),
+    modules: frozenset[str] = frozenset(),
+) -> list[str]:
+    """Every name this scope reads: calls, and functions handed around as values.
+
+    ``modules`` holds the names this file bound to one of our own modules. ``jobs.process``
+    read as a value - a command table, a callback registered by reference - is then an edge to
+    ``process``; ``cfg.get`` is not, because ``cfg`` is not a module of ours and matching the
+    word ``get`` against an internal definition would be an invention.
+    """
     skip = _annotation_nodes(node)
     names = [_called_name(c, foreign) for c in ast.walk(node) if isinstance(c, ast.Call)]
+    names += [
+        n.attr
+        for n in ast.walk(node)
+        if isinstance(n, ast.Attribute)
+        and isinstance(n.ctx, ast.Load)
+        and isinstance(n.value, ast.Name)
+        and n.value.id in modules
+        and id(n) not in skip
+    ]
     names += [
         n.id
         for n in ast.walk(node)
@@ -157,13 +176,15 @@ def _referenced_names(node: ast.AST, foreign: frozenset[str] = frozenset()) -> l
     return [n for n in names if n]
 
 
-def _module_level_calls(tree: ast.Module, foreign: frozenset[str]) -> list[str]:
+def _module_level_calls(
+    tree: ast.Module, foreign: frozenset[str], modules: frozenset[str] = frozenset()
+) -> list[str]:
     """Names read at import time, which run whether or not anything calls the module."""
     names: list[str] = []
     for node in tree.body:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             continue
-        names += _referenced_names(node, foreign)
+        names += _referenced_names(node, foreign, modules)
     return names
 
 
@@ -210,6 +231,16 @@ def foreign_names(tree: ast.Module, known: set[str]) -> frozenset[str]:
     return frozenset(out)
 
 
+def module_aliases(tree: ast.Module, foreign: frozenset[str]) -> frozenset[str]:
+    """Every name an import statement bound that is not a dependency - our own modules,
+    under whatever name this file calls them (``from . import jobs``, ``import pkg.jobs``)."""
+    bound: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            bound |= {a.asname or a.name.split(".")[0] for a in node.names}
+    return frozenset(bound - foreign)
+
+
 def _imported_names(tree: ast.Module, known: set[str]) -> dict[str, str]:
     """Bare name -> dotted definition, for names this module imported explicitly.
 
@@ -248,13 +279,14 @@ def _targets_of(
     imported: dict[str, str],
     by_name: dict[str, set[str]],
     foreign: frozenset[str] = frozenset(),
+    modules: frozenset[str] = frozenset(),
 ) -> tuple[set[str], int]:
     """What one definition reaches, and how many call sites could not be named at all."""
     blind = sum(
         1 for c in ast.walk(body) if isinstance(c, ast.Call) and not _called_name(c, foreign)
     )
     targets: set[str] = set()
-    for name in _referenced_names(body, foreign):
+    for name in _referenced_names(body, foreign, modules):
         targets |= _resolve(name, module, imported, by_name)
     return targets, blind
 
@@ -279,16 +311,17 @@ def build(parsed: dict[str, tuple[ast.Module, str]]) -> CallGraph:
     for module, (tree, _path) in sorted(parsed.items()):
         imported = _imported_names(tree, known)
         outside = foreign_names(tree, set(parsed))
+        ours = module_aliases(tree, outside)
         import_root = f"{module}.__import__"
         graph.edges.setdefault(import_root, set())
-        for name in _module_level_calls(tree, outside):
+        for name in _module_level_calls(tree, outside, ours):
             graph.edges[import_root] |= _resolve(name, module, imported, by_name)
 
         for qualified in [d for d in graph.definitions if d.startswith(f"{module}.")]:
             body = _body_of(tree, qualified)
             if body is None:
                 continue
-            targets, blind = _targets_of(body, module, imported, by_name, outside)
+            targets, blind = _targets_of(body, module, imported, by_name, outside, ours)
             graph.unresolved += blind
             graph.edges[qualified] = targets - {qualified}
     return graph
