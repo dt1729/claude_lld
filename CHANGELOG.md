@@ -3,6 +3,46 @@
 Versions are `0.x`: the shape is still moving, so a minor bump may break a contract you
 already wrote. Each entry says which ones do.
 
+## Unreleased
+
+Proposed as 0.8.0; see `docs/release/0.8.0-plan.md`. The release where the documentation
+started being read off the scripts instead of off earlier prose.
+
+### Breaking
+
+None. A contract that validates under 0.7.0 still validates; no script that reads a
+contract, a waiver row or a hook payload has changed.
+
+### Docs
+
+- `docs/guide/`: getting started (new and existing repositories, the restart a hook needs),
+  the two loops step by step with each step's input, output and gate, and a troubleshooting
+  page with one section per refusal whose cause is not obvious.
+- `docs/reference/`: the gate, every numbered rule with its script and tier, contracts,
+  commands, skills, the sweep, the detectors and the enforcement templates - each
+  enumerated from `scripts/`.
+- The README is the front door again: pitch, install, the two loops, and a feature table
+  that says what each part prevents and links to its reference page. Its Status section
+  said 254 tests and its badge 265; the suite has 356 passing and 1 skipped.
+
+### Skills
+
+New: `workflow`. Says which loop to start in, which command comes next, and what done
+means. It lists the diagnose-side direction - concentration as the sweep headline, no dead
+figure until entry points are confirmed, "shape collision" for clones - as **not built**,
+so the model does not describe it as a feature.
+
+### Known wrong, now documented
+
+Two sweeps on 2026-10-24 were wrong in ways the docs now name and the `workflow` skill tells
+the model to check by hand: a script with no main guard is not an entry point, so
+openarm_control read 21.6% dead, mostly falsely; and helpers under five statements are
+never hashed, so six one-line helpers copied across four files in manipulation_vision went
+unreported. Neither is fixed in code yet.
+
+**Still unverified**, unchanged from 0.5.0: the `PreToolUse` hook has never been observed
+intercepting a write inside a live session.
+
 ## 0.7.0 — 2026-10-23
 
 The release where contracts started saying what a function refuses, and the sweep started
