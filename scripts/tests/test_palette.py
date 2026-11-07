@@ -105,13 +105,19 @@ def test_the_skill_is_found_when_it_is_installed() -> None:
 
     Skipped where it is genuinely absent. A headless server that has never run Claude Code
     interactively has no extracted bundled skills, and this failed there - a red suite that
-    said nothing about the code. The prerequisite is enforced at runtime by ``diagrams.py``
-    exiting 3, and the planted-directory tests below cover the detection logic itself.
+    said nothing about the code. Installed means the palette file is present, not that a
+    folder of the right name exists: Claude Code extracts a bundled skill's ``references/``
+    lazily, so a host can hold three ``dataviz`` folders with that directory empty, and
+    ``find_dataviz`` is right to refuse them. The prerequisite is enforced at runtime by
+    ``diagrams.py`` exiting 3, and the planted-directory tests below cover the detection
+    logic itself.
     """
-    if not (Path.home() / ".claude" / "skills" / "dataviz").is_dir() and not list(
-        (Path(tempfile.gettempdir()) / "claude" / "bundled-skills").glob("*/*/dataviz")
-    ):
-        pytest.skip("the dataviz skill is not installed on this host")
+    folders = [
+        Path.home() / ".claude" / "skills" / "dataviz",
+        *(Path(tempfile.gettempdir()) / "claude" / "bundled-skills").glob("*/*/dataviz"),
+    ]
+    if not any((folder / "references" / "palette.md").is_file() for folder in folders):
+        pytest.skip("the dataviz skill is not installed with its palette on this host")
     assert find_dataviz() is not None
 
 
