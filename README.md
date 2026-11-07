@@ -82,6 +82,7 @@ follow from that. This plugin supplies the missing step and refuses to let it be
 | Diagrams | `/lld-seed:diagram` — inheritance, dependencies, control flow and errors, drawn from the AST with a controlled vocabulary |
 | Folder guidance | `/lld-seed:scaffold-guidance` — only where an agent needs orienting, never a sweep |
 | Repository sweep | `/lld-seed:sweep` — entry points, reach sets, dead code and Type-1/2 clones over a whole repo, with the lists behind every number |
+| Seam survey | `/lld-seed:seams` — every Protocol, ABC, pure-virtual class and C function table, the adapters behind each, and the parameter-adapter cells a seam matrix would owe. Python on the standard library; C and C++ need tree-sitter |
 | Outreach | `/lld-seed:propose` — one verified finding on someone else's repo, as a pull request they can merge or an issue they can answer |
 
 Anything a tool can check is enforced by the tool and named, not restated, in the prose.

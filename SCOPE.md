@@ -63,7 +63,9 @@ once, in the tool's config, and referenced from the prose by name.
 - Designing a visual language. `dataviz` owns colour and type; this plugin owns only what
   the syntax tree says.
 - Teaching Python syntax, or anything the model already does by default.
-- Supporting languages other than Python in v0.x. The vocabulary is language-neutral; the
-  enforcement is not.
+- Enforcing design in languages other than Python in v0.x. The vocabulary is
+  language-neutral; the gate, the detector and the contracts are not. The one exception is
+  the seam finder (`/seams`), which reads C and C++ as well, because a seam whose adapters
+  sit behind a C++ binding is the case that motivated it. It measures; it enforces nothing.
 
 Rejected ideas live in `.out-of-scope/` with the reasoning, so they are not re-litigated.

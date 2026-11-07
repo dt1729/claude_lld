@@ -3,6 +3,37 @@
 Versions are `0.x`: the shape is still moving, so a minor bump may break a contract you
 already wrote. Each entry says which ones do.
 
+## Unreleased
+
+### Seam survey
+
+`/seams` lists every seam in a repository and the adapters behind it: Python `Protocol`
+and ABC, C++ classes with a pure virtual method, C structs of function pointers. An adapter
+is matched by inheritance, by shape for a Python `Protocol`, or by being a C variable of
+the table's type with an initializer. Each seam reports its `cells`, parameters times
+adapters, which is the number of claims a seam matrix would owe.
+
+This is the measurement that rule 11 (a `Protocol` with one implementation) was written
+for and never had, and the prerequisite for a seam obligation kind in `scaffold-tests`:
+one test per adapter per parameter that the adapter honours it in its backend's terms, and
+that the backend's refusal surfaces as the seam's own error. That kind is not in this
+release. It waits on a written reproduction of the failure that motivated it.
+
+Two things are new in kind, not just in feature:
+
+- **The first analyser that reads a language other than Python.** The matcher is
+  language-neutral; each language is one front end. Python uses the standard library. C and
+  C++ use tree-sitter, the first third-party parser the plugin has needed. It is not
+  installed by the plugin: `pip install tree-sitter tree-sitter-c tree-sitter-cpp`.
+- **A missing parser is a result.** When C or C++ files exist and tree-sitter does not, the
+  report prints them under `not analysed` and exits 1. A survey that said "no seams" because
+  it could not read the language would be green on nothing, which is incident 001 again.
+
+Blind spots, stated in the module and the command: bases match by simple name
+(over-reports across namespaces); structural matching ignores parameter names and types and
+is refused for a seam with one parameterless method; `ABC.register`, C++ concepts, template
+duck typing and per-platform factories are invisible (under-reports).
+
 ## 0.7.0 — 2026-10-23
 
 The release where contracts started saying what a function refuses, and the sweep started
